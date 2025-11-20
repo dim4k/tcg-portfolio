@@ -1,31 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Antoine Kim - Lead Developer</title>
-    <link rel="icon" href="public/img/favicon/favicon-32x32.png" type="image/png" sizes="32x32">
-    <link rel="icon" href="public/img/favicon/favicon-16x16.png" type="image/png" sizes="16x16">
-    <link rel="apple-touch-icon" href="public/img/favicon/apple-touch-icon.png">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="public/css/style.css">
-</head>
-<body>
-    <canvas id="canvas-background"></canvas>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Antoine Kim - Lead Developer</title>
+        <link
+            rel="icon"
+            href="public/img/favicon/favicon-32x32.png"
+            type="image/png"
+            sizes="32x32"
+        />
+        <link
+            rel="icon"
+            href="public/img/favicon/favicon-16x16.png"
+            type="image/png"
+            sizes="16x16"
+        />
+        <link
+            rel="apple-touch-icon"
+            href="public/img/favicon/apple-touch-icon.png"
+        />
+        <link rel="stylesheet" href="public/css/style.css" />
+    </head>
+    <body>
+        <canvas id="canvas-background"></canvas>
 
-    <div class="deck-container" id="deck">
-        <div class="swipe-hint-mobile">
-            <i class="fas fa-hand-point-down"></i>
-            <p>Swipe Down</p>
+        <div class="deck-container" id="deck">
+            <div class="swipe-hint-mobile">
+                <i class="fas fa-hand-point-down"></i>
+                <p>Swipe Down</p>
+            </div>
+            <!-- Cards will be dynamically rendered here by JS -->
         </div>
-        <!-- Cards will be dynamically rendered here by JS -->
-    </div>
 
-    <div class="scroll-hint scroll-hint-desktop">
-        <p>Scroll to Cycle Deck</p>
-        <i class="fas fa-chevron-down"></i>
-    </div>
+        <div class="scroll-hint scroll-hint-desktop">
+            <p>Scroll to Cycle Deck</p>
+            <i class="fas fa-chevron-down"></i>
+        </div>
 
-    <script type="module" src="public/js/main.js"></script>
-</body>
+        <!-- Scripts loaded in order for non-module environment -->
+        <script src="public/js/config.js"></script>
+        <script src="public/js/modules/utils.js"></script>
+        <script src="public/js/modules/swirl-background.js"></script>
+        <script src="public/js/components/tcg-card.js"></script>
+        <script src="public/js/modules/card-renderer.js"></script>
+        <script src="public/js/modules/deck-manager.js"></script>
+        <script src="public/js/modules/interactions.js"></script>
+        <script src="public/js/main.js"></script>
+    </body>
 </html>

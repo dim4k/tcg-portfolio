@@ -1,7 +1,7 @@
 /* ==========================================
    FONTS & RESET
    ========================================== */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Lato:wght@400;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Lato:wght@400;700&display=swap");
 
 *,
 *::before,
@@ -19,7 +19,7 @@
     --card-height: 600px;
     --card-width: calc(var(--card-height) * var(--card-aspect));
     --card-radius: 24px;
-    
+
     --color-fire: #ff9d9d;
     --color-electric: #ffec9d;
     --color-psychic: #d89dff;
@@ -36,7 +36,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Lato', sans-serif;
+    font-family: "Lato", sans-serif;
     color: white;
     background-color: #101010;
     transition: background-color 0.8s ease;
@@ -54,9 +54,24 @@ body {
 }
 
 body::before {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(circle at 50% 50%, transparent 0%, #000000 130%);
+    background-image: radial-gradient(
+        circle at 50% 50%,
+        transparent 0%,
+        #000000 130%
+    );
     z-index: -1;
+}
+
+/* ==========================================
+   DECK CONTAINER
+   ========================================== */
+.deck-container {
+    position: relative;
+    width: var(--card-width);
+    height: var(--card-height);
+    perspective: 1200px;
+    z-index: 100;
 }

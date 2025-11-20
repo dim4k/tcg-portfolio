@@ -3,8 +3,7 @@
    Imports all modules
    ========================================== */
 
-@import 'modules/base.css';
-@import 'modules/card.css';
-@import 'modules/effects.css';
-@import 'modules/themes.css';
-@import 'modules/responsive.css';
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css");
+@import "modules/base.css";
+@import "modules/effects.css";
+@import "modules/responsive.css";

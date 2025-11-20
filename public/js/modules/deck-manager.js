@@ -1,16 +1,24 @@
-import { CONFIG } from '../config.js';
-import { SwirlBackground } from './swirl-background.js';
+window.TCG = window.TCG || {};
 
-export class DeckManager {
+window.TCG.DeckManager = class DeckManager {
     constructor() {
         this.isAnimating = false;
         this.swirlBackground = null;
         this.body = document.body;
         this.cards = [];
+
+        // Listen for theme changes from cards
+        document.addEventListener("theme-change", (e) => {
+            const card = e.target;
+            // Only update background if the event comes from the active card
+            if (card.dataset.pos === "0") {
+                this.updateBackground(e.detail.theme);
+            }
+        });
     }
 
     init() {
-        this.cards = Array.from(document.querySelectorAll('.card'));
+        this.cards = Array.from(document.querySelectorAll("tcg-card"));
         this.updatePositions();
         this.initSwirlBackground();
     }
@@ -22,29 +30,28 @@ export class DeckManager {
     updatePositions() {
         this.cards.forEach((card, index) => {
             card.dataset.pos = index;
-            card.classList.remove('slide-out', 're-enter');
-            card.style.transform = ''; 
+            card.classList.remove("slide-out", "re-enter");
+            card.style.transform = "";
         });
 
         const activeCard = this.cards[0];
         if (activeCard) {
-            let themeName = 'default';
-            if (activeCard.classList.contains('theme-dark')) themeName = 'dark';
-            else if (activeCard.classList.contains('theme-fire')) themeName = 'fire';
-            else if (activeCard.classList.contains('theme-electric')) themeName = 'electric';
-            else if (activeCard.classList.contains('theme-psychic')) themeName = 'psychic';
-            else if (activeCard.classList.contains('theme-grass')) themeName = 'grass';
-            else if (activeCard.classList.contains('theme-ice')) themeName = 'ice';
-            
+            const themeName = activeCard.getAttribute("theme") || "default";
             this.updateBackground(themeName);
         }
     }
 
     updateBackground(themeName) {
-        const themeColor = CONFIG.THEME_COLORS[themeName] || CONFIG.THEME_COLORS.default;
+        const CONFIG = window.CONFIG;
+        const themeColor =
+            CONFIG.THEME_COLORS[themeName] || CONFIG.THEME_COLORS.default;
         this.body.style.backgroundColor = themeColor;
-        
-        if (this.swirlBackground && !window.matchMedia(`(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`).matches) {
+
+        if (
+            this.swirlBackground &&
+            !window.matchMedia(`(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`)
+                .matches
+        ) {
             this.swirlBackground.setTheme(themeName);
         }
     }
@@ -52,21 +59,22 @@ export class DeckManager {
     rotateCards() {
         if (this.isAnimating) return;
         this.isAnimating = true;
+        const CONFIG = window.CONFIG;
 
         const topCard = this.cards[0];
 
         if (!topCard) return;
 
-        topCard.classList.add('slide-out');
+        topCard.classList.add("slide-out");
 
         setTimeout(() => {
             // Rotate the array instead of moving DOM elements
             this.cards.push(this.cards.shift());
-            
-            topCard.classList.remove('slide-out');
-            
+
+            topCard.classList.remove("slide-out");
+
             this.updatePositions();
-            
+
             setTimeout(() => {
                 this.isAnimating = false;
             }, CONFIG.ANIMATION_BUFFER);
@@ -74,23 +82,24 @@ export class DeckManager {
     }
 
     initSwirlBackground() {
-        if (!window.matchMedia(`(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`).matches) {
-            this.swirlBackground = new SwirlBackground('canvas-background');
-            
+        const CONFIG = window.CONFIG;
+        if (
+            !window.matchMedia(`(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`)
+                .matches
+        ) {
+            this.swirlBackground = new window.TCG.SwirlBackground(
+                "canvas-background"
+            );
+
             const cards = this.getCards();
             const activeCard = cards[0];
-            let initialTheme = 'default';
-            
+            let initialTheme = "default";
+
             if (activeCard) {
-                if (activeCard.classList.contains('theme-dark')) initialTheme = 'dark';
-                else if (activeCard.classList.contains('theme-fire')) initialTheme = 'fire';
-                else if (activeCard.classList.contains('theme-electric')) initialTheme = 'electric';
-                else if (activeCard.classList.contains('theme-psychic')) initialTheme = 'psychic';
-                else if (activeCard.classList.contains('theme-grass')) initialTheme = 'grass';
-                else if (activeCard.classList.contains('theme-ice')) initialTheme = 'ice';
+                initialTheme = activeCard.getAttribute("theme") || "default";
             }
-            
+
             this.swirlBackground.setTheme(initialTheme);
         }
     }
-}
+};
