@@ -2,7 +2,7 @@
 
 A highly interactive, Pokémon VMAX-inspired portfolio featuring holographic 3D cards, dynamic particle backgrounds, and smooth physics-based animations.
 
-![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## 📋 Overview
