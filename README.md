@@ -1,6 +1,6 @@
-# 🎴 Antoine Kim - Interactive Card Portfolio
+# 🎴 TCG Porfolio
 
-A highly interactive, Pokémon VMAX-inspired portfolio featuring holographic 3D cards, dynamic particle backgrounds, and smooth physics-based animations.
+A highly interactive, Pokémon card inspired portfolio featuring holographic 3D cards, dynamic particle backgrounds, and smooth physics-based animations.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -30,28 +30,6 @@ This project reimagines the traditional web portfolio as a deck of collectible c
 -   **Gesture Control**: Swipe down on mobile to cycle cards.
 -   **Scroll Navigation**: Smooth scroll wheel support on desktop.
 -   **Responsive Design**: Adaptive layout that transforms from a 3D showcase to a touch-friendly mobile view.
-
-## 📁 Project Structure
-
-The codebase is fully modularized and uses Web Components for maintainability and scalability.
-
-```
-tcg-portfolio/
-├── index.html              # Main entry point
-├── README.md               # Documentation
-└── public/
-    ├── js/
-    │   ├── config.js       # ⚡ CENTRAL CONFIG (Edit this!)
-    │   ├── main.js         # JS Entry point
-    │   └── modules/
-    │       ├── card-renderer.js    # DOM Generation
-    │       ├── deck-manager.js     # Deck State & Animation
-    │       ├── interactions.js     # Input Handling (Mouse/Touch/Gyro)
-    │       ├── swirl-background.js # Canvas Background Effect
-    │       └── utils.js            # Helpers
-    └── components/
-        └── tcg-card.js     # Web Component (<tcg-card>)
-```
 
 ## ⚙️ Configuration
 
@@ -123,8 +101,6 @@ _Note: Gyroscope features require HTTPS or localhost context on modern mobile br
 **Antoine Kim**
 
 -   Portfolio: [antoine.kim](https://antoine.kim)
--   LinkedIn: [Antoine Kim](https://www.linkedin.com/in/antoine-kim/)
--   GitHub: [@dim4k](https://github.com/dim4k)
 
 ## 📝 License
 
