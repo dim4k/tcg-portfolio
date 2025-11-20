@@ -1,0 +1,62 @@
+/* ==========================================
+   FONTS & RESET
+   ========================================== */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Lato:wght@400;700&display=swap');
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ==========================================
+   VARIABLES
+   ========================================== */
+:root {
+    --card-aspect: 0.718;
+    --card-height: 600px;
+    --card-width: calc(var(--card-height) * var(--card-aspect));
+    --card-radius: 24px;
+    
+    --color-fire: #ff9d9d;
+    --color-electric: #ffec9d;
+    --color-psychic: #d89dff;
+    --color-grass: #6dbf7a;
+    --color-ice: #9de4ff;
+}
+
+/* ==========================================
+   BODY & BACKGROUND
+   ========================================== */
+body {
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Lato', sans-serif;
+    color: white;
+    background-color: #101010;
+    transition: background-color 0.8s ease;
+}
+
+/* Canvas background */
+#canvas-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    opacity: 0.5;
+}
+
+body::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle at 50% 50%, transparent 0%, #000000 130%);
+    z-index: -1;
+}
