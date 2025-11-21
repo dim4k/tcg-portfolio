@@ -3,6 +3,7 @@ window.TCG = window.TCG || {};
 window.TCG.InteractionManager = class InteractionManager {
     constructor(deckManager) {
         this.deckManager = deckManager;
+        this.lastHoveredCard = null;
         const CONFIG = window.CONFIG;
         this.state = {
             isMobile: window.matchMedia(
@@ -50,13 +51,38 @@ window.TCG.InteractionManager = class InteractionManager {
     }
 
     handleMouseMove(e) {
-        const activeCard = this.getActiveCard();
-        if (!activeCard || this.deckManager.isAnimating) return;
-        const CONFIG = window.CONFIG;
+        if (this.deckManager.isAnimating) return;
 
-        const rect = activeCard.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        let targetCard;
+        if (this.deckManager.isGridView) {
+            targetCard = e.target.closest("tcg-card");
+        } else {
+            targetCard = this.getActiveCard();
+        }
+
+        // If we switched cards (or moved off a card in grid view), reset the old one
+        if (this.lastHoveredCard && this.lastHoveredCard !== targetCard) {
+            this.resetCardEffect(this.lastHoveredCard);
+        }
+        this.lastHoveredCard = targetCard;
+
+        if (!targetCard) return;
+
+        this.applyCardEffect(targetCard, e.clientX, e.clientY);
+    }
+
+    handleMouseLeave() {
+        if (this.lastHoveredCard) {
+            this.resetCardEffect(this.lastHoveredCard);
+            this.lastHoveredCard = null;
+        }
+    }
+
+    applyCardEffect(card, clientX, clientY) {
+        const CONFIG = window.CONFIG;
+        const rect = card.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
 
@@ -65,31 +91,29 @@ window.TCG.InteractionManager = class InteractionManager {
         const rotateY =
             ((x - centerX) / centerX) * -CONFIG.MOUSE_ROTATION_FACTOR;
 
-        activeCard.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
 
         const pctX = (x / rect.width) * 100;
         const pctY = (y / rect.height) * 100;
 
-        activeCard.style.setProperty("--mx", `${pctX}%`);
-        activeCard.style.setProperty("--my", `${pctY}%`);
-        activeCard.style.setProperty("--holo-x", `${pctX}%`);
-        activeCard.style.setProperty("--holo-y", `${pctY}%`);
-        activeCard.style.setProperty("--glare-opacity", "1");
+        card.style.setProperty("--mx", `${pctX}%`);
+        card.style.setProperty("--my", `${pctY}%`);
+        card.style.setProperty("--holo-x", `${pctX}%`);
+        card.style.setProperty("--holo-y", `${pctY}%`);
+        card.style.setProperty("--glare-opacity", "1");
     }
 
-    handleMouseLeave() {
-        const activeCard = this.getActiveCard();
-        if (!activeCard) return;
-
-        activeCard.style.transform = "";
-        activeCard.style.setProperty("--mx", "50%");
-        activeCard.style.setProperty("--my", "50%");
-        activeCard.style.setProperty("--holo-x", "50%");
-        activeCard.style.setProperty("--holo-y", "50%");
-        activeCard.style.setProperty("--glare-opacity", "0");
+    resetCardEffect(card) {
+        card.style.transform = "";
+        card.style.setProperty("--mx", "50%");
+        card.style.setProperty("--my", "50%");
+        card.style.setProperty("--holo-x", "50%");
+        card.style.setProperty("--holo-y", "50%");
+        card.style.setProperty("--glare-opacity", "0");
     }
 
     handleWheel(e) {
+        if (this.deckManager.isGridView) return;
         if (e.deltaY > 0) {
             this.deckManager.rotateCards();
         }
@@ -100,6 +124,7 @@ window.TCG.InteractionManager = class InteractionManager {
     }
 
     handleTouchEnd(e) {
+        if (this.deckManager.isGridView) return;
         const touchEndY = e.changedTouches[0].clientY;
         const swipeDistance = touchEndY - this.state.touchStartY;
         const CONFIG = window.CONFIG;
@@ -114,7 +139,12 @@ window.TCG.InteractionManager = class InteractionManager {
 
     handleOrientation(event) {
         const activeCard = this.getActiveCard();
-        if (!activeCard || this.deckManager.isAnimating) return;
+        if (
+            !activeCard ||
+            this.deckManager.isAnimating ||
+            this.deckManager.isGridView
+        )
+            return;
         const CONFIG = window.CONFIG;
 
         if (!this.state.gyroInitialized) {

@@ -456,7 +456,8 @@
     pointer-events: none;
 }
 
-:host([data-pos="0"]:hover) .glitter-layer {
+:host([data-pos="0"]:hover) .glitter-layer,
+:host(.grid-mode:hover) .glitter-layer {
     opacity: 0.25;
 }
 
@@ -484,7 +485,8 @@
     pointer-events: none;
 }
 
-:host([data-pos="0"]:hover) .holographic-grid {
+:host([data-pos="0"]:hover) .holographic-grid,
+:host(.grid-mode:hover) .holographic-grid {
     opacity: 0.2;
 }
 

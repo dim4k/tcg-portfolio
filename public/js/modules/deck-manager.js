@@ -3,15 +3,18 @@ window.TCG = window.TCG || {};
 window.TCG.DeckManager = class DeckManager {
     constructor() {
         this.isAnimating = false;
+        this.isGridView = false;
         this.swirlBackground = null;
         this.body = document.body;
         this.cards = [];
+        this.deckContainer = document.getElementById("deck");
+        this.toggleBtn = document.getElementById("view-toggle-btn");
 
         // Listen for theme changes from cards
         document.addEventListener("theme-change", (e) => {
             const card = e.target;
             // Only update background if the event comes from the active card
-            if (card.dataset.pos === "0") {
+            if (card.dataset.pos === "0" && !this.isGridView) {
                 this.updateBackground(e.detail.theme);
             }
         });
@@ -21,6 +24,37 @@ window.TCG.DeckManager = class DeckManager {
         this.cards = Array.from(document.querySelectorAll("tcg-card"));
         this.updatePositions();
         this.initSwirlBackground();
+
+        if (this.toggleBtn) {
+            this.toggleBtn.addEventListener("click", () => this.toggleView());
+        }
+    }
+
+    toggleView() {
+        this.isGridView = !this.isGridView;
+
+        if (this.isGridView) {
+            this.deckContainer.classList.add("grid-view");
+            document.body.classList.add("grid-active");
+            this.toggleBtn.innerHTML =
+                '<i class="fas fa-layer-group"></i> <span>Deck View</span>';
+
+            // Reset styles for grid view
+            this.cards.forEach((card) => {
+                card.style.transform = "";
+                card.classList.add("grid-mode");
+            });
+        } else {
+            this.deckContainer.classList.remove("grid-view");
+            document.body.classList.remove("grid-active");
+            this.toggleBtn.innerHTML =
+                '<i class="fas fa-th-large"></i> <span>Grid View</span>';
+
+            this.cards.forEach((card) => {
+                card.classList.remove("grid-mode");
+            });
+            this.updatePositions();
+        }
     }
 
     getCards() {
@@ -28,6 +62,8 @@ window.TCG.DeckManager = class DeckManager {
     }
 
     updatePositions() {
+        if (this.isGridView) return;
+
         this.cards.forEach((card, index) => {
             card.dataset.pos = index;
             card.classList.remove("slide-out", "re-enter");
@@ -57,7 +93,7 @@ window.TCG.DeckManager = class DeckManager {
     }
 
     rotateCards() {
-        if (this.isAnimating) return;
+        if (this.isAnimating || this.isGridView) return;
         this.isAnimating = true;
         const CONFIG = window.CONFIG;
 
