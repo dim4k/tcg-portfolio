@@ -59,3 +59,18 @@
         transform: translate(-50%, calc(-50% + 60px));
     }
 }
+
+/* ==========================================
+   REDUCED MOTION
+   ========================================== */
+@media (prefers-reduced-motion: reduce) {
+    .scroll-hint,
+    .swipe-hint-mobile {
+        animation: none !important;
+    }
+
+    /* The animated swirl canvas is also skipped in JS for reduced motion. */
+    #canvas-background {
+        display: none;
+    }
+}

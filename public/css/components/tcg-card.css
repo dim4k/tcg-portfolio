@@ -594,3 +594,28 @@
         font-size: 11px;
     }
 }
+
+/* ==========================================
+   ACCESSIBILITY
+   ========================================== */
+
+/* Visible focus ring for keyboard users on the theme buttons */
+.theme-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    :host,
+    .card-image,
+    .glare,
+    .holo-overlay,
+    .glitter-layer,
+    .theme-btn,
+    .action-btn {
+        transition: none !important;
+        animation: none !important;
+    }
+}

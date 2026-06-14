@@ -1,6 +1,8 @@
-window.TCG = window.TCG || {};
+import { CONFIG } from "../config.js";
+import { Utils } from "./utils.js";
+import { SwirlBackground } from "./swirl-background.js";
 
-window.TCG.DeckManager = class DeckManager {
+export class DeckManager {
     constructor() {
         this.isAnimating = false;
         this.isGridView = false;
@@ -39,6 +41,9 @@ window.TCG.DeckManager = class DeckManager {
             this.toggleBtn.innerHTML =
                 '<i class="fas fa-layer-group"></i> <span>Deck View</span>';
 
+            // Pause the animated background while browsing the grid.
+            if (this.swirlBackground) this.swirlBackground.disable();
+
             // Reset styles for grid view
             this.cards.forEach((card) => {
                 card.style.transform = "";
@@ -49,6 +54,9 @@ window.TCG.DeckManager = class DeckManager {
             document.body.classList.remove("grid-active");
             this.toggleBtn.innerHTML =
                 '<i class="fas fa-th-large"></i> <span>Grid View</span>';
+
+            // Resume the animated background.
+            if (this.swirlBackground) this.swirlBackground.enable();
 
             this.cards.forEach((card) => {
                 card.classList.remove("grid-mode");
@@ -78,16 +86,11 @@ window.TCG.DeckManager = class DeckManager {
     }
 
     updateBackground(themeName) {
-        const CONFIG = window.CONFIG;
         const themeColor =
             CONFIG.THEME_COLORS[themeName] || CONFIG.THEME_COLORS.default;
         this.body.style.backgroundColor = themeColor;
 
-        if (
-            this.swirlBackground &&
-            !window.matchMedia(`(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`)
-                .matches
-        ) {
+        if (this.swirlBackground && !Utils.isMobile()) {
             this.swirlBackground.setTheme(themeName);
         }
     }
@@ -95,7 +98,6 @@ window.TCG.DeckManager = class DeckManager {
     rotateCards() {
         if (this.isAnimating || this.isGridView) return;
         this.isAnimating = true;
-        const CONFIG = window.CONFIG;
 
         const topCard = this.cards[0];
 
@@ -118,14 +120,8 @@ window.TCG.DeckManager = class DeckManager {
     }
 
     initSwirlBackground() {
-        const CONFIG = window.CONFIG;
-        if (
-            !window.matchMedia(`(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`)
-                .matches
-        ) {
-            this.swirlBackground = new window.TCG.SwirlBackground(
-                "canvas-background"
-            );
+        if (!Utils.isMobile() && !Utils.prefersReducedMotion()) {
+            this.swirlBackground = new SwirlBackground("canvas-background");
 
             const cards = this.getCards();
             const activeCard = cards[0];
@@ -138,4 +134,4 @@ window.TCG.DeckManager = class DeckManager {
             this.swirlBackground.setTheme(initialTheme);
         }
     }
-};
+}

@@ -1,13 +1,12 @@
-window.TCG = window.TCG || {};
+import { CONFIG } from "../config.js";
 
-window.TCG.CardRenderer = class CardRenderer {
+export class CardRenderer {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
     }
 
     render() {
         if (!this.container) return;
-        const CONFIG = window.CONFIG;
 
         const swipeHint = this.container.querySelector(".swipe-hint-mobile");
         this.container.innerHTML = "";
@@ -20,4 +19,5 @@ window.TCG.CardRenderer = class CardRenderer {
             this.container.appendChild(cardElement);
         });
     }
-};
+}
+

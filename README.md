@@ -7,7 +7,7 @@ A highly interactive, Pokémon card inspired portfolio featuring holographic 3D 
 
 ## 📋 Overview
 
-This project reimagines the traditional web portfolio as a deck of collectible cards. Built with modern Vanilla JS and CSS3, it delivers a premium visual experience without heavy frameworks.
+This project reimagines the traditional web portfolio as a deck of collectible cards. Built with modern Vanilla JS (native ES Modules) and CSS3, it delivers a premium visual experience without heavy frameworks and **without a build step**.
 
 **Core Concept:**
 
@@ -41,7 +41,7 @@ Open `public/js/config.js` to customize:
 Modify the `CARDS` array to add, remove, or edit cards.
 
 ```javascript
-window.CONFIG = {
+export const CONFIG = {
     // ...
     CARDS: [
         {
@@ -83,7 +83,23 @@ Adjust physics and sensitivity in the root of the object.
 
 ## 🚀 How to Run
 
-Simply open `index.html` in your browser! No server required.
+The site is made of plain static files (HTML, JS, CSS) using native ES modules.
+Because ES modules are blocked over the `file://` protocol, you need to serve
+the folder over HTTP. Any static server works — for example:
+
+```bash
+# Python 3
+python -m http.server 8000
+
+# or Node's http-server, nginx, Apache, etc.
+```
+
+Then open http://localhost:8000.
+
+## ☁️ Deployment
+
+No build step. Just upload the project files (`index.html` + `public/`) to any
+static host (nginx, Apache, GitHub Pages, Netlify, S3, FTP…).
 
 ## 📱 Browser Support
 

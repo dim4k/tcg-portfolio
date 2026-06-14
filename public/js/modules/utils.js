@@ -1,6 +1,6 @@
-window.TCG = window.TCG || {};
+import { CONFIG } from "../config.js";
 
-window.TCG.Utils = {
+export const Utils = {
     /**
      * Calculate years since a given date
      * @param {string} dateString - Date in YYYY-MM-DD format
@@ -27,4 +27,26 @@ window.TCG.Utils = {
     clamp: function (value, min, max) {
         return Math.max(min, Math.min(max, value));
     },
+
+    /**
+     * Shared media query for the mobile breakpoint.
+     */
+    mobileMql: window.matchMedia(
+        `(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`
+    ),
+
+    /**
+     * Whether the viewport currently matches the mobile breakpoint.
+     */
+    isMobile: function () {
+        return this.mobileMql.matches;
+    },
+
+    /**
+     * Whether the user prefers reduced motion.
+     */
+    prefersReducedMotion: function () {
+        return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    },
 };
+

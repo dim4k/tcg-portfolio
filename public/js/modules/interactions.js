@@ -1,14 +1,14 @@
-window.TCG = window.TCG || {};
+import { CONFIG } from "../config.js";
+import { Utils } from "./utils.js";
 
-window.TCG.InteractionManager = class InteractionManager {
+export class InteractionManager {
     constructor(deckManager) {
         this.deckManager = deckManager;
         this.lastHoveredCard = null;
-        const CONFIG = window.CONFIG;
+        this.rafId = null;
+        this.pendingPointer = null;
         this.state = {
-            isMobile: window.matchMedia(
-                `(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`
-            ).matches,
+            isMobile: Utils.isMobile(),
             gyroBase: { beta: 0, gamma: 0 },
             gyroInitialized: false,
             swipeHintShown: false,
@@ -36,18 +36,38 @@ window.TCG.InteractionManager = class InteractionManager {
             this.handleMouseLeave()
         );
 
-        // Scroll
-        window.addEventListener("wheel", (e) => this.handleWheel(e));
+        // Scroll (passive: we never call preventDefault here)
+        window.addEventListener("wheel", (e) => this.handleWheel(e), {
+            passive: true,
+        });
 
-        // Touch
-        window.addEventListener("touchstart", (e) => this.handleTouchStart(e));
-        window.addEventListener("touchend", (e) => this.handleTouchEnd(e));
+        // Touch (passive)
+        window.addEventListener(
+            "touchstart",
+            (e) => this.handleTouchStart(e),
+            { passive: true }
+        );
+        window.addEventListener("touchend", (e) => this.handleTouchEnd(e), {
+            passive: true,
+        });
+
+        // Keyboard navigation: cycle the deck with the arrow keys.
+        window.addEventListener("keydown", (e) => this.handleKeydown(e));
 
         // Theme switcher handled by component
     }
 
     getActiveCard() {
         return document.querySelector('tcg-card[data-pos="0"]');
+    }
+
+    handleKeydown(e) {
+        if (this.deckManager.isGridView) return;
+        const navKeys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"];
+        if (navKeys.includes(e.key)) {
+            e.preventDefault();
+            this.deckManager.rotateCards();
+        }
     }
 
     handleMouseMove(e) {
@@ -68,18 +88,38 @@ window.TCG.InteractionManager = class InteractionManager {
 
         if (!targetCard) return;
 
-        this.applyCardEffect(targetCard, e.clientX, e.clientY);
+        // Throttle DOM writes to one per animation frame.
+        this.pendingPointer = { card: targetCard, x: e.clientX, y: e.clientY };
+        if (this.rafId === null) {
+            this.rafId = requestAnimationFrame(() => {
+                this.rafId = null;
+                const p = this.pendingPointer;
+                if (p) this.applyCardEffect(p.card, p.x, p.y);
+            });
+        }
     }
 
     handleMouseLeave() {
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        this.pendingPointer = null;
         if (this.lastHoveredCard) {
             this.resetCardEffect(this.lastHoveredCard);
             this.lastHoveredCard = null;
         }
     }
 
+    setCardVars(card, { mx, my, glare }) {
+        card.style.setProperty("--mx", `${mx}%`);
+        card.style.setProperty("--my", `${my}%`);
+        card.style.setProperty("--holo-x", `${mx}%`);
+        card.style.setProperty("--holo-y", `${my}%`);
+        card.style.setProperty("--glare-opacity", `${glare}`);
+    }
+
     applyCardEffect(card, clientX, clientY) {
-        const CONFIG = window.CONFIG;
         const rect = card.getBoundingClientRect();
         const x = clientX - rect.left;
         const y = clientY - rect.top;
@@ -96,20 +136,12 @@ window.TCG.InteractionManager = class InteractionManager {
         const pctX = (x / rect.width) * 100;
         const pctY = (y / rect.height) * 100;
 
-        card.style.setProperty("--mx", `${pctX}%`);
-        card.style.setProperty("--my", `${pctY}%`);
-        card.style.setProperty("--holo-x", `${pctX}%`);
-        card.style.setProperty("--holo-y", `${pctY}%`);
-        card.style.setProperty("--glare-opacity", "1");
+        this.setCardVars(card, { mx: pctX, my: pctY, glare: 1 });
     }
 
     resetCardEffect(card) {
         card.style.transform = "";
-        card.style.setProperty("--mx", "50%");
-        card.style.setProperty("--my", "50%");
-        card.style.setProperty("--holo-x", "50%");
-        card.style.setProperty("--holo-y", "50%");
-        card.style.setProperty("--glare-opacity", "0");
+        this.setCardVars(card, { mx: 50, my: 50, glare: 0 });
     }
 
     handleWheel(e) {
@@ -127,7 +159,6 @@ window.TCG.InteractionManager = class InteractionManager {
         if (this.deckManager.isGridView) return;
         const touchEndY = e.changedTouches[0].clientY;
         const swipeDistance = touchEndY - this.state.touchStartY;
-        const CONFIG = window.CONFIG;
 
         if (swipeDistance > CONFIG.SWIPE_THRESHOLD) {
             if (!this.state.swipeHintShown) {
@@ -145,7 +176,6 @@ window.TCG.InteractionManager = class InteractionManager {
             this.deckManager.isGridView
         )
             return;
-        const CONFIG = window.CONFIG;
 
         if (!this.state.gyroInitialized) {
             this.state.gyroBase.beta = event.beta || 0;
@@ -160,12 +190,12 @@ window.TCG.InteractionManager = class InteractionManager {
         const relativeBeta = beta - this.state.gyroBase.beta;
         const relativeGamma = gamma - this.state.gyroBase.gamma;
 
-        const rotateX = window.TCG.Utils.clamp(
+        const rotateX = Utils.clamp(
             relativeBeta * CONFIG.GYRO_SENSITIVITY,
             -CONFIG.GYRO_MAX_ROTATION,
             CONFIG.GYRO_MAX_ROTATION
         );
-        const rotateY = window.TCG.Utils.clamp(
+        const rotateY = Utils.clamp(
             relativeGamma * CONFIG.GYRO_SENSITIVITY,
             -CONFIG.GYRO_MAX_ROTATION,
             CONFIG.GYRO_MAX_ROTATION
@@ -176,11 +206,7 @@ window.TCG.InteractionManager = class InteractionManager {
         const pctX = 50 + relativeGamma * 2;
         const pctY = 50 + relativeBeta * 2;
 
-        activeCard.style.setProperty("--mx", `${pctX}%`);
-        activeCard.style.setProperty("--my", `${pctY}%`);
-        activeCard.style.setProperty("--holo-x", `${pctX}%`);
-        activeCard.style.setProperty("--holo-y", `${pctY}%`);
-        activeCard.style.setProperty("--glare-opacity", "0.8");
+        this.setCardVars(activeCard, { mx: pctX, my: pctY, glare: 0.8 });
     }
 
     initializeGyroscope() {
@@ -231,7 +257,6 @@ window.TCG.InteractionManager = class InteractionManager {
 
     initializeSwipeHint() {
         if (!this.state.isMobile || !this.elements.swipeHint) return;
-        const CONFIG = window.CONFIG;
 
         setTimeout(() => {
             this.showSwipeHint();
@@ -244,4 +269,4 @@ window.TCG.InteractionManager = class InteractionManager {
             }, CONFIG.HINT_REPEAT_INTERVAL);
         }, CONFIG.HINT_INITIAL_DELAY);
     }
-};
+}

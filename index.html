@@ -4,6 +4,30 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Antoine Kim - Lead Developer</title>
+
+        <meta
+            name="description"
+            content="Antoine Kim — Lead Developer. An interactive trading-card style portfolio showcasing technical leadership, full-stack and DevOps expertise."
+        />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Antoine Kim - Lead Developer" />
+        <meta
+            property="og:description"
+            content="An interactive trading-card style developer portfolio."
+        />
+        <meta property="og:image" content="public/img/ak.jpg" />
+
+        <!-- Twitter -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Antoine Kim - Lead Developer" />
+        <meta
+            name="twitter:description"
+            content="An interactive trading-card style developer portfolio."
+        />
+        <meta name="twitter:image" content="public/img/ak.jpg" />
+
         <link
             rel="icon"
             href="public/img/favicon/favicon-32x32.png"
@@ -20,9 +44,226 @@
             rel="apple-touch-icon"
             href="public/img/favicon/apple-touch-icon.png"
         />
+
+        <!-- Font Awesome (single document-level load for light-DOM icons) -->
+        <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
         <link rel="stylesheet" href="public/css/style.css" />
+
+        <!-- Critical inline styles so the loader shows instantly,
+             before stylesheets/fonts finish downloading. -->
+        <style>
+            #app-loader {
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: radial-gradient(
+                    circle at 50% 40%,
+                    #161616 0%,
+                    #0b0b0b 80%
+                );
+                transition: opacity 0.5s ease, visibility 0.5s ease;
+            }
+            #app-loader.is-hidden {
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+            }
+
+            /* Skeleton card mimics the real card layout */
+            .skeleton-card {
+                position: relative;
+                height: min(600px, 80vh);
+                aspect-ratio: 0.718;
+                border-radius: 24px;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                background: #141414;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                box-shadow: 0 15px 45px rgba(0, 0, 0, 0.6);
+                overflow: hidden;
+                animation: skeleton-float 3s ease-in-out infinite;
+            }
+
+            /* Subtle gradient border sweep */
+            .skeleton-card::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                border-radius: 24px;
+                padding: 1px;
+                background: linear-gradient(
+                    135deg,
+                    rgba(255, 255, 255, 0.18),
+                    rgba(255, 255, 255, 0.05),
+                    rgba(255, 255, 255, 0.18),
+                    rgba(255, 255, 255, 0.05)
+                );
+                background-size: 300% 300%;
+                -webkit-mask: linear-gradient(#000 0 0) content-box,
+                    linear-gradient(#000 0 0);
+                -webkit-mask-composite: xor;
+                mask: linear-gradient(#000 0 0) content-box,
+                    linear-gradient(#000 0 0);
+                mask-composite: exclude;
+                animation: skeleton-border 8s ease-in-out infinite;
+                pointer-events: none;
+            }
+
+            .sk {
+                position: relative;
+                border-radius: 8px;
+                background: #1f1f1f;
+                overflow: hidden;
+            }
+            /* Shimmer sweep over every block */
+            .sk::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                transform: translateX(-100%);
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.08) 40%,
+                    rgba(255, 255, 255, 0.14) 50%,
+                    rgba(255, 255, 255, 0.08) 60%,
+                    transparent
+                );
+                animation: skeleton-shimmer 1.4s infinite;
+            }
+
+            .sk-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .sk-title-group {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                flex: 1;
+            }
+            .sk-line {
+                height: 12px;
+            }
+            .sk-line.lg {
+                height: 20px;
+                width: 70%;
+            }
+            .sk-line.sm {
+                height: 10px;
+                width: 40%;
+            }
+            .sk-hp {
+                width: 54px;
+                height: 30px;
+                border-radius: 6px;
+            }
+            .sk-image {
+                flex: 1;
+                border-radius: 10px;
+            }
+            .sk-row {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .sk-footer {
+                display: flex;
+                gap: 10px;
+                margin-top: auto;
+            }
+            .sk-dot {
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+            }
+
+            @keyframes skeleton-shimmer {
+                100% {
+                    transform: translateX(100%);
+                }
+            }
+            @keyframes skeleton-border {
+                0%,
+                100% {
+                    background-position: 0% 50%;
+                }
+                50% {
+                    background-position: 100% 50%;
+                }
+            }
+            @keyframes skeleton-float {
+                0%,
+                100% {
+                    transform: translateY(0);
+                }
+                50% {
+                    transform: translateY(-8px);
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .skeleton-card,
+                .skeleton-card::after,
+                .sk::before {
+                    animation: none;
+                }
+            }
+        </style>
     </head>
     <body>
+        <div id="app-loader" role="status" aria-label="Loading">
+            <div class="skeleton-card">
+                <div class="sk-header">
+                    <div class="sk-title-group">
+                        <div class="sk sk-line sm"></div>
+                        <div class="sk sk-line lg"></div>
+                    </div>
+                    <div class="sk sk-hp"></div>
+                </div>
+                <div class="sk sk-image"></div>
+                <div class="sk-row">
+                    <div class="sk sk-line lg"></div>
+                    <div class="sk sk-line"></div>
+                    <div class="sk sk-line"></div>
+                </div>
+                <div class="sk-row">
+                    <div class="sk sk-line lg"></div>
+                    <div class="sk sk-line"></div>
+                </div>
+                <div class="sk-footer">
+                    <div class="sk sk-dot"></div>
+                    <div class="sk sk-dot"></div>
+                    <div class="sk sk-dot"></div>
+                    <div class="sk sk-dot"></div>
+                    <div class="sk sk-dot"></div>
+                    <div class="sk sk-dot"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Safety net: never trap the user behind the loader if the
+             module fails to load for any reason. -->
+        <script>
+            window.addEventListener("load", function () {
+                setTimeout(function () {
+                    var l = document.getElementById("app-loader");
+                    if (l) l.classList.add("is-hidden");
+                }, 8000);
+            });
+        </script>
+
         <canvas id="canvas-background"></canvas>
 
         <button
@@ -47,14 +288,7 @@
             <i class="fas fa-chevron-down"></i>
         </div>
 
-        <!-- Scripts loaded in order for non-module environment -->
-        <script src="public/js/config.js"></script>
-        <script src="public/js/modules/utils.js"></script>
-        <script src="public/js/modules/swirl-background.js"></script>
-        <script src="public/js/components/tcg-card.js"></script>
-        <script src="public/js/modules/card-renderer.js"></script>
-        <script src="public/js/modules/deck-manager.js"></script>
-        <script src="public/js/modules/interactions.js"></script>
-        <script src="public/js/main.js"></script>
+        <!-- Single ES-module entry point (native browser modules) -->
+        <script type="module" src="public/js/main.js"></script>
     </body>
 </html>

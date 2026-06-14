@@ -1,5 +1,3 @@
-window.TCG = window.TCG || {};
-
 // Utility functions
 const { PI, cos, sin, abs, sqrt, pow, round, random, atan2 } = Math;
 const TAU = 2 * PI;
@@ -330,11 +328,10 @@ const SimplexNoise = (function () {
     return i;
 })();
 
-window.TCG.SwirlBackground = class SwirlBackground {
+export class SwirlBackground {
     constructor(canvasId) {
         this.canvasElement = document.getElementById(canvasId);
         if (!this.canvasElement) return;
-
         // Configuration
         this.particleCount = 150;
         this.particlePropCount = 9;
@@ -368,6 +365,9 @@ window.TCG.SwirlBackground = class SwirlBackground {
         this.center = [];
         this.tick = 0;
         this.isEnabled = true;
+        this.intendedEnabled = true;
+        this.rafId = null;
+        this.resizeTimeout = null;
 
         this.init();
     }
@@ -376,7 +376,25 @@ window.TCG.SwirlBackground = class SwirlBackground {
         this.createCanvas();
         this.resize();
         this.initParticles();
+        this.bindEvents();
         this.draw();
+    }
+
+    bindEvents() {
+        // Keep the canvas in sync with the viewport (debounced).
+        window.addEventListener("resize", () => {
+            clearTimeout(this.resizeTimeout);
+            this.resizeTimeout = setTimeout(() => this.resize(), 150);
+        });
+
+        // Pause rendering when the tab is hidden to save CPU/battery.
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                this.stop();
+            } else if (this.intendedEnabled) {
+                this.start();
+            }
+        });
     }
 
     createCanvas() {
@@ -553,7 +571,7 @@ window.TCG.SwirlBackground = class SwirlBackground {
         this.renderGlow();
         this.renderToScreen();
 
-        requestAnimationFrame(() => this.draw());
+        this.rafId = requestAnimationFrame(() => this.draw());
     }
 
     setTheme(theme) {
@@ -572,13 +590,29 @@ window.TCG.SwirlBackground = class SwirlBackground {
         }
     }
 
-    enable() {
+    start() {
+        if (this.rafId !== null) return; // already running
         this.isEnabled = true;
         this.draw();
     }
 
-    disable() {
+    stop() {
         this.isEnabled = false;
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+    }
+
+    enable() {
+        this.intendedEnabled = true;
+        if (!document.hidden) this.start();
+    }
+
+    disable() {
+        this.intendedEnabled = false;
+        this.stop();
         this.ctx.b.clearRect(0, 0, this.canvas.b.width, this.canvas.b.height);
     }
-};
+}
+

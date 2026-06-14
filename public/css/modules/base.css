@@ -104,6 +104,11 @@ body::before {
     transform: translateY(-2px);
 }
 
+.view-toggle-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+}
+
 .view-toggle-btn i {
     font-size: 18px;
 }

@@ -1,4 +1,11 @@
-window.TCG = window.TCG || {};
+import { CONFIG } from "../config.js";
+import { Utils } from "../modules/utils.js";
+
+// Theme switcher buttons generated from the single source of truth (CONFIG.THEMES).
+const themeButtons = CONFIG.THEMES.map(
+    (t) =>
+        `<button class="theme-btn" data-theme="${t.id}" title="${t.label}" aria-label="${t.label} theme" aria-pressed="false"><i class="${t.icon}"></i></button>`
+).join("");
 
 const template = document.createElement("template");
 template.innerHTML = `
@@ -41,14 +48,7 @@ template.innerHTML = `
 
     <div class="card-footer">
         <div class="weakness"></div>
-        <div class="theme-switcher">
-            <button class="theme-btn" data-theme="dark" title="Dark"><i class="fas fa-circle"></i></button>
-            <button class="theme-btn" data-theme="ice" title="Ice"><i class="fas fa-snowflake"></i></button>
-            <button class="theme-btn" data-theme="fire" title="Fire"><i class="fas fa-fire"></i></button>
-            <button class="theme-btn" data-theme="electric" title="Electric"><i class="fas fa-bolt"></i></button>
-            <button class="theme-btn" data-theme="psychic" title="Psychic"><i class="fas fa-moon"></i></button>
-            <button class="theme-btn" data-theme="grass" title="Grass"><i class="fas fa-leaf"></i></button>
-        </div>
+        <div class="theme-switcher">${themeButtons}</div>
     </div>
 </div>
 <div class="texture-overlay"></div>
@@ -67,6 +67,22 @@ class TcgCard extends HTMLElement {
 
     static get observedAttributes() {
         return ["theme", "data-pos"];
+    }
+
+    attributeChangedCallback(name) {
+        if (name === "theme") {
+            this.syncThemeButtons();
+        }
+    }
+
+    syncThemeButtons() {
+        const current = this.getAttribute("theme");
+        this.shadowRoot.querySelectorAll(".theme-btn").forEach((btn) => {
+            btn.setAttribute(
+                "aria-pressed",
+                String(btn.dataset.theme === current)
+            );
+        });
     }
 
     set data(data) {
@@ -103,13 +119,19 @@ class TcgCard extends HTMLElement {
     render() {
         if (!this._data) return;
         const data = this._data;
-        const CONFIG = window.CONFIG;
 
         // Set theme
         this.setAttribute("theme", data.theme);
         this.setAttribute("data-id", data.id);
 
-        // Header
+        this.renderHeader(data);
+        this.renderImage(data);
+        this.renderBody(data);
+        this.renderActions(data);
+        this.renderFooter(data);
+    }
+
+    renderHeader(data) {
         this.shadowRoot.querySelector(".stage-label").textContent =
             data.header.stage;
         this.shadowRoot.querySelector(".card-name").textContent =
@@ -120,58 +142,60 @@ class TcgCard extends HTMLElement {
         // HP Value logic
         const hpValueContainer = this.shadowRoot.querySelector(".hp-value");
         if (data.header.hpType === "dynamic-exp") {
-            const exp = window.TCG.Utils.calculateYearsSince(
-                CONFIG.CAREER_START_DATE
-            );
+            const exp = Utils.calculateYearsSince(CONFIG.CAREER_START_DATE);
             hpValueContainer.innerHTML = `<span id="dynamic-exp">${exp}</span>Y`;
         } else if (data.header.hpType === "dynamic-age") {
-            const age = window.TCG.Utils.calculateYearsSince(CONFIG.BIRTH_DATE);
+            const age = Utils.calculateYearsSince(CONFIG.BIRTH_DATE);
             hpValueContainer.innerHTML = `<span id="dynamic-age">${age}</span>`;
         } else {
             hpValueContainer.textContent = data.header.hpValue || "";
         }
+    }
 
-        // Image
+    renderImage(data) {
         const img = this.shadowRoot.querySelector(".card-image");
         img.src = data.image;
         img.alt = data.header.name;
         img.dataset.card = data.id;
+        img.loading = "lazy";
+        img.decoding = "async";
+    }
 
-        // Row 1
+    renderBody(data) {
         const row1 = this.shadowRoot.querySelector(".row-1");
         row1.querySelector("h3").textContent = data.body.row1.title;
         row1.querySelector("p").textContent = data.body.row1.desc;
         row1.querySelector(".damage i").className = data.body.row1.icon;
 
-        // Row 2
         const row2 = this.shadowRoot.querySelector(".row-2");
         row2.querySelector("h3").textContent = data.body.row2.title;
         row2.querySelector("p").textContent = data.body.row2.desc;
+    }
 
-        // Actions
+    renderActions(data) {
         const actionsContainer =
             this.shadowRoot.querySelector(".action-btn-group");
         actionsContainer.innerHTML = "";
-        if (data.body.row2.actions) {
-            data.body.row2.actions.forEach((actionKey) => {
-                const social = CONFIG.SOCIAL[actionKey];
-                const a = document.createElement("a");
-                a.href = social.url;
-                a.className = `action-btn ${social.class}`;
-                a.target = "_blank";
-                a.rel = "noopener noreferrer";
-                a.innerHTML = `<i class="${social.icon}"></i> ${social.label}`;
-                // Stop propagation on links to prevent card interaction issues
-                a.addEventListener("click", (e) => e.stopPropagation());
-                actionsContainer.appendChild(a);
-            });
-        }
+        if (!data.body.row2.actions) return;
 
-        // Footer
+        data.body.row2.actions.forEach((actionKey) => {
+            const social = CONFIG.SOCIAL[actionKey];
+            const a = document.createElement("a");
+            a.href = social.url;
+            a.className = `action-btn ${social.class}`;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.innerHTML = `<i class="${social.icon}"></i> ${social.label}`;
+            // Stop propagation on links to prevent card interaction issues
+            a.addEventListener("click", (e) => e.stopPropagation());
+            actionsContainer.appendChild(a);
+        });
+    }
+
+    renderFooter(data) {
         this.shadowRoot.querySelector(".weakness").textContent =
             data.footer.text;
     }
 }
 
-window.TCG.TcgCard = TcgCard;
 customElements.define("tcg-card", TcgCard);

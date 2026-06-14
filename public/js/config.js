@@ -1,5 +1,5 @@
 // Global Configuration
-window.CONFIG = {
+export const CONFIG = {
     BIRTH_DATE: "1988-05-01",
     CAREER_START_DATE: "2011-05-01",
     MOBILE_BREAKPOINT: 600,
@@ -21,6 +21,15 @@ window.CONFIG = {
         ice: "#0a3d52",
         default: "#101010",
     },
+    // Selectable themes (single source of truth for the card theme switcher)
+    THEMES: [
+        { id: "dark", label: "Dark", icon: "fas fa-circle" },
+        { id: "ice", label: "Ice", icon: "fas fa-snowflake" },
+        { id: "fire", label: "Fire", icon: "fas fa-fire" },
+        { id: "electric", label: "Electric", icon: "fas fa-bolt" },
+        { id: "psychic", label: "Psychic", icon: "fas fa-moon" },
+        { id: "grass", label: "Grass", icon: "fas fa-leaf" },
+    ],
     SOCIAL: {
         linkedin: {
             url: "https://www.linkedin.com/in/antoine-kim/",
