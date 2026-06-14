@@ -34,35 +34,29 @@ export class DeckManager {
 
     toggleView() {
         this.isGridView = !this.isGridView;
+        const state = this.isGridView
+            ? CONFIG.VIEW_TOGGLE.grid
+            : CONFIG.VIEW_TOGGLE.deck;
 
-        if (this.isGridView) {
-            this.deckContainer.classList.add("grid-view");
-            document.body.classList.add("grid-active");
-            this.toggleBtn.innerHTML =
-                '<i class="fas fa-layer-group"></i> <span>Deck View</span>';
+        this.deckContainer.classList.toggle("grid-view", this.isGridView);
+        this.body.classList.toggle("grid-active", this.isGridView);
+        this.toggleBtn.innerHTML = `<i class="${state.icon}"></i> <span>${state.label}</span>`;
 
-            // Pause the animated background while browsing the grid.
-            if (this.swirlBackground) this.swirlBackground.disable();
-
-            // Reset styles for grid view
-            this.cards.forEach((card) => {
-                card.style.transform = "";
-                card.classList.add("grid-mode");
-            });
-        } else {
-            this.deckContainer.classList.remove("grid-view");
-            document.body.classList.remove("grid-active");
-            this.toggleBtn.innerHTML =
-                '<i class="fas fa-th-large"></i> <span>Grid View</span>';
-
-            // Resume the animated background.
-            if (this.swirlBackground) this.swirlBackground.enable();
-
-            this.cards.forEach((card) => {
-                card.classList.remove("grid-mode");
-            });
-            this.updatePositions();
+        // Pause the animated background while browsing the grid, resume otherwise.
+        if (this.swirlBackground) {
+            if (this.isGridView) {
+                this.swirlBackground.disable();
+            } else {
+                this.swirlBackground.enable();
+            }
         }
+
+        this.cards.forEach((card) => {
+            card.classList.toggle("grid-mode", this.isGridView);
+            if (this.isGridView) card.style.transform = "";
+        });
+
+        if (!this.isGridView) this.updatePositions();
     }
 
     getCards() {
@@ -74,7 +68,7 @@ export class DeckManager {
 
         this.cards.forEach((card, index) => {
             card.dataset.pos = index;
-            card.classList.remove("slide-out", "re-enter");
+            card.classList.remove("slide-out");
             card.style.transform = "";
         });
 
@@ -97,26 +91,42 @@ export class DeckManager {
 
     rotateCards() {
         if (this.isAnimating || this.isGridView) return;
-        this.isAnimating = true;
 
         const topCard = this.cards[0];
-
         if (!topCard) return;
 
+        this.isAnimating = true;
         topCard.classList.add("slide-out");
 
-        setTimeout(() => {
+        let done = false;
+        const finish = () => {
+            if (done) return;
+            done = true;
+            topCard.removeEventListener("transitionend", onEnd);
+            clearTimeout(fallback);
+
             // Rotate the array instead of moving DOM elements
             this.cards.push(this.cards.shift());
-
             topCard.classList.remove("slide-out");
-
             this.updatePositions();
 
             setTimeout(() => {
                 this.isAnimating = false;
             }, CONFIG.ANIMATION_BUFFER);
-        }, CONFIG.ANIMATION_DELAY);
+        };
+
+        const onEnd = (e) => {
+            if (e.target === topCard && e.propertyName === "transform") {
+                finish();
+            }
+        };
+        topCard.addEventListener("transitionend", onEnd);
+
+        // Safety net in case the transition is skipped or interrupted.
+        const fallback = setTimeout(
+            finish,
+            CONFIG.ANIMATION_DELAY + CONFIG.ANIMATION_BUFFER
+        );
     }
 
     initSwirlBackground() {

@@ -30,6 +30,11 @@ export const CONFIG = {
         { id: "psychic", label: "Psychic", icon: "fas fa-moon" },
         { id: "grass", label: "Grass", icon: "fas fa-leaf" },
     ],
+    // Label/icon for the deck<->grid view toggle button, keyed by current view.
+    VIEW_TOGGLE: {
+        deck: { icon: "fas fa-th-large", label: "Grid View" },
+        grid: { icon: "fas fa-layer-group", label: "Deck View" },
+    },
     SOCIAL: {
         linkedin: {
             url: "https://www.linkedin.com/in/antoine-kim/",
@@ -75,7 +80,7 @@ export const CONFIG = {
             image: "public/img/ak.jpg",
             body: {
                 row1: {
-                    title: "Lead Developer",
+                    title: "Engineering Manager",
                     desc: "Technical leadership and team management. Orchestrating complex projects with a strong focus on code quality.",
                     icon: "fas fa-star",
                 },

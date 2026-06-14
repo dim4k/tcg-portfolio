@@ -119,6 +119,16 @@ export class InteractionManager {
         card.style.setProperty("--glare-opacity", `${glare}`);
     }
 
+    /**
+     * Apply a 3D tilt transform and the holo/glare CSS variables to a card.
+     * Shared by the mouse-move and gyroscope code paths.
+     */
+    applyTilt(card, { rotateX, rotateY, scale = 1, glare, mx, my }) {
+        const scalePart = scale !== 1 ? ` scale(${scale})` : "";
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)${scalePart}`;
+        this.setCardVars(card, { mx, my, glare });
+    }
+
     applyCardEffect(card, clientX, clientY) {
         const rect = card.getBoundingClientRect();
         const x = clientX - rect.left;
@@ -131,12 +141,17 @@ export class InteractionManager {
         const rotateY =
             ((x - centerX) / centerX) * -CONFIG.MOUSE_ROTATION_FACTOR;
 
-        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
-
         const pctX = (x / rect.width) * 100;
         const pctY = (y / rect.height) * 100;
 
-        this.setCardVars(card, { mx: pctX, my: pctY, glare: 1 });
+        this.applyTilt(card, {
+            rotateX,
+            rotateY,
+            scale: 1.02,
+            glare: 1,
+            mx: pctX,
+            my: pctY,
+        });
     }
 
     resetCardEffect(card) {
@@ -201,12 +216,16 @@ export class InteractionManager {
             CONFIG.GYRO_MAX_ROTATION
         );
 
-        activeCard.style.transform = `perspective(1000px) rotateX(${-rotateX}deg) rotateY(${rotateY}deg)`;
+        const pctX = Utils.clamp(50 + relativeGamma * 2, 0, 100);
+        const pctY = Utils.clamp(50 + relativeBeta * 2, 0, 100);
 
-        const pctX = 50 + relativeGamma * 2;
-        const pctY = 50 + relativeBeta * 2;
-
-        this.setCardVars(activeCard, { mx: pctX, my: pctY, glare: 0.8 });
+        this.applyTilt(activeCard, {
+            rotateX: -rotateX,
+            rotateY,
+            glare: 0.8,
+            mx: pctX,
+            my: pctY,
+        });
     }
 
     initializeGyroscope() {

@@ -10,7 +10,6 @@ const themeButtons = CONFIG.THEMES.map(
 const template = document.createElement("template");
 template.innerHTML = `
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="public/css/components/tcg-card.css">
 <div class="card-border"></div>
 <div class="card-inner">
     <div class="card-header">
@@ -37,7 +36,7 @@ template.innerHTML = `
             <div class="damage"><i></i></div>
         </div>
         
-        <div class="skill-row row-2" style="flex-direction: column; align-items: flex-start;">
+        <div class="skill-row row-2">
             <div class="skill-desc">
                 <h3></h3>
                 <p></p>
@@ -58,11 +57,40 @@ template.innerHTML = `
 <div class="glitter-layer"></div>
 `;
 
+// Component styles are parsed once into a single constructable stylesheet that
+// every <tcg-card> instance adopts, instead of re-parsing a <link> per card.
+// (Font Awesome stays a <link> so its relative font url()s resolve correctly.)
+let sharedSheet = null;
+fetch("public/css/components/tcg-card.css")
+    .then((r) => r.text())
+    .then((css) => {
+        sharedSheet = new CSSStyleSheet();
+        sharedSheet.replaceSync(css);
+        // Adopt into any cards created before the sheet finished loading.
+        document
+            .querySelectorAll("tcg-card")
+            .forEach((card) => card.adoptSharedSheet());
+    })
+    .catch(() => {});
+
 class TcgCard extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
         this.shadowRoot.appendChild(template.content.cloneNode(true));
+        this.adoptSharedSheet();
+    }
+
+    adoptSharedSheet() {
+        if (
+            sharedSheet &&
+            !this.shadowRoot.adoptedStyleSheets.includes(sharedSheet)
+        ) {
+            this.shadowRoot.adoptedStyleSheets = [
+                ...this.shadowRoot.adoptedStyleSheets,
+                sharedSheet,
+            ];
+        }
     }
 
     static get observedAttributes() {
