@@ -14,15 +14,37 @@
    ========================================== */
 :root {
     --card-aspect: 0.718;
-    --card-height: 600px;
+    /* Clamped so the card is never taller than a short window, which cannot scroll. */
+    --card-height: min(600px, 80vh);
     --card-width: calc(var(--card-height) * var(--card-aspect));
     --card-radius: 24px;
 
+    /* Accent per theme, used by the card border and glitter. */
+    --color-dark: #888;
     --color-fire: #ff9d9d;
     --color-electric: #ffec9d;
     --color-psychic: #d89dff;
     --color-grass: #6dbf7a;
     --color-ice: #9de4ff;
+
+    /* Page background per theme. Single source of truth: DeckManager reads these. */
+    --bg-dark: #0a0a0a;
+    --bg-fire: #4a0000;
+    --bg-electric: #5e4b00;
+    --bg-psychic: #2a004a;
+    --bg-grass: #0d3d1f;
+    --bg-ice: #0a3d52;
+    --bg-default: #101010;
+
+    /* Frosted-glass tints, by opacity percentage. */
+    --glass-10: rgba(255, 255, 255, 0.1);
+    --glass-20: rgba(255, 255, 255, 0.2);
+    --glass-30: rgba(255, 255, 255, 0.3);
+    --glass-60: rgba(255, 255, 255, 0.6);
+
+    --z-canvas: -1;
+    --z-deck: 100;
+    --z-overlay: 1000;
 }
 
 /* ==========================================
@@ -30,13 +52,14 @@
    ========================================== */
 body {
     height: 100vh;
+    height: 100dvh; /* dynamic toolbars on mobile */
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: "Lato", sans-serif;
     color: white;
-    background-color: #101010;
+    background-color: var(--bg-default);
     transition: background-color 0.8s ease;
 }
 
@@ -47,7 +70,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: -1;
+    z-index: var(--z-canvas);
     opacity: 0.5;
     /* Replaces two per-frame full-screen ctx.filter blur passes: the compositor does it once. */
     filter: blur(var(--bg-glow-blur, 1.5px));
@@ -68,7 +91,7 @@ body::before {
         transparent 0%,
         #000000 130%
     );
-    z-index: -1;
+    z-index: var(--z-canvas);
 }
 
 /* ==========================================
@@ -79,7 +102,7 @@ body::before {
     width: var(--card-width);
     height: var(--card-height);
     perspective: 1200px;
-    z-index: 100;
+    z-index: var(--z-deck);
 }
 
 /* ==========================================
@@ -89,9 +112,9 @@ body::before {
     position: fixed;
     top: 30px;
     right: 30px;
-    z-index: 1000;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    z-index: var(--z-overlay);
+    background: var(--glass-10);
+    border: 1px solid var(--glass-20);
     color: white;
     padding: 10px 20px;
     border-radius: 30px;
@@ -106,7 +129,7 @@ body::before {
 }
 
 .view-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--glass-20);
     transform: translateY(-2px);
 }
 
@@ -136,6 +159,7 @@ body::before {
 .deck-container.grid-view {
     width: 100%;
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -166,4 +190,20 @@ body::before {
 /* Hide scroll hint in grid view */
 body.grid-active .scroll-hint {
     display: none;
+}
+
+/* ==========================================
+   REDUCED MOTION
+   ========================================== */
+@media (prefers-reduced-motion: reduce) {
+    body,
+    .view-toggle-btn,
+    .deck-container.grid-view tcg-card {
+        transition: none !important;
+    }
+
+    /* transition:none only removes the tween; the jump has to go too. */
+    .view-toggle-btn:hover {
+        transform: none;
+    }
 }

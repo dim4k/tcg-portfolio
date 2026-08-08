@@ -2,9 +2,10 @@
 export const CONFIG = {
     BIRTH_DATE: "1988-05-01",
     CAREER_START_DATE: "2011-05-01",
+    // Keep in sync with the 600px media queries in responsive.css and tcg-card.css.
     MOBILE_BREAKPOINT: 600,
     SWIPE_THRESHOLD: 20,
-    // Must match the .slide-out transition duration in tcg-card.css (0.4s).
+    // Must match the .slide-out / .slide-in transition duration in tcg-card.css (0.4s).
     ANIMATION_DELAY: 400,
     ANIMATION_BUFFER: 100,
     // One trackpad flick emits dozens of events; one mouse notch is ~100.
@@ -15,15 +16,11 @@ export const CONFIG = {
     GYRO_SENSITIVITY: 0.5,
     GYRO_MAX_ROTATION: 15,
     MOUSE_ROTATION_FACTOR: 10,
-    THEME_COLORS: {
-        dark: "#0a0a0a",
-        fire: "#4a0000",
-        electric: "#5e4b00",
-        psychic: "#2a004a",
-        grass: "#0d3d1f",
-        ice: "#0a3d52",
-        default: "#101010",
-    },
+    // Tilt applied to the hovered card. The deck's own perspective lives in base.css.
+    TILT_PERSPECTIVE: 1000,
+    TILT_SCALE: 1.02,
+    GLARE_MOUSE: 1,
+    GLARE_GYRO: 0.8,
     // Selectable themes (single source of truth for the card theme switcher)
     THEMES: [
         { id: "dark", label: "Dark", icon: "circle" },

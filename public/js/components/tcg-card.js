@@ -202,10 +202,10 @@ class TcgCard extends HTMLElement {
         const hpValueContainer = this.shadowRoot.querySelector(".hp-value");
         if (data.header.hpType === "dynamic-exp") {
             const exp = Utils.calculateYearsSince(CONFIG.CAREER_START_DATE);
-            hpValueContainer.innerHTML = `<span id="dynamic-exp">${exp}</span>Y`;
+            hpValueContainer.textContent = `${exp}Y`;
         } else if (data.header.hpType === "dynamic-age") {
             const age = Utils.calculateYearsSince(CONFIG.BIRTH_DATE);
-            hpValueContainer.innerHTML = `<span id="dynamic-age">${age}</span>`;
+            hpValueContainer.textContent = String(age);
         } else {
             hpValueContainer.textContent = data.header.hpValue || "";
         }

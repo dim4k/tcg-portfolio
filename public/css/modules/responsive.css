@@ -1,5 +1,6 @@
 /* ==========================================
    MOBILE RESPONSIVE
+   Keep 600 in sync with CONFIG.MOBILE_BREAKPOINT and tcg-card.css.
    ========================================== */
 @media (max-width: 600px) {
     :root {
@@ -25,7 +26,7 @@
         top: 30%;
         left: 50%;
         transform: translate(-50%, -50%);
-        z-index: 1000;
+        z-index: var(--z-overlay);
         color: white;
         font-size: 16px;
         font-weight: 600;
@@ -46,7 +47,6 @@
     }
 
     .swipe-hint-mobile p {
-        margin: 0;
         text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
         font-family: "Poppins", sans-serif;
     }
@@ -54,11 +54,5 @@
     /* Hide view toggle on mobile */
     .view-toggle-btn {
         display: none;
-    }
-}
-
-@media (min-width: 601px) {
-    .swipe-hint-mobile {
-        display: none !important;
     }
 }

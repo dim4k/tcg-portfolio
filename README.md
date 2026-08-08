@@ -62,15 +62,18 @@ export const CONFIG = {
 
 ### 2. Visual Themes
 
-Define your own color schemes in `THEME_COLORS`.
+Theme colours live in CSS, so the page background and the card gradients cannot drift
+apart. Add a `--bg-*` and a `--color-*` entry in `public/css/modules/base.css`:
 
-```javascript
-    THEME_COLORS: {
-        "fire": "#4a0000",
-        "ice": "#004a4a",
-        "default": "#101010"
-    }
+```css
+:root {
+    --bg-fire: #4a0000; /* page background */
+    --color-fire: #ff9d9d; /* card accent */
+}
 ```
+
+Then add the matching `:host([theme="fire"])` block in
+`public/css/components/tcg-card.css`, and list the theme in `CONFIG.THEMES`.
 
 ### 3. Tuning
 

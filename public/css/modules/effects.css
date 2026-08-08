@@ -13,14 +13,7 @@
     text-align: center;
 }
 
-.scroll-hint p {
-    margin: 0;
-}
-
-.scroll-hint-desktop {
-    display: block;
-}
-
+/* Default: shown on desktop, replaced by the swipe hint below the mobile breakpoint. */
 .swipe-hint-mobile {
     display: none;
 }

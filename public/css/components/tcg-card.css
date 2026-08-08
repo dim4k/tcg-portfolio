@@ -10,7 +10,8 @@ svg {
 :host {
     display: block;
     position: absolute;
-    inset: 0;    border-radius: var(--card-radius, 15px);
+    inset: 0;
+    border-radius: var(--card-radius);
     background: #000;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.5), 0 15px 35px rgba(0, 0, 0, 0.5);
     transform-style: preserve-3d;
@@ -18,6 +19,15 @@ svg {
     overflow: hidden;
     cursor: grab;
     user-select: none;
+
+    /* Paint order of the stacked layers, bottom to top. */
+    --z-inner: 2;
+    --z-texture: 3;
+    --z-holo: 4;
+    --z-border: 5;
+    --z-grid: 6;
+    --z-glare: 7;
+    --z-glitter: 8;
 
     /* Default state */
     z-index: 0;
@@ -27,11 +37,21 @@ svg {
     pointer-events: none;
 }
 
-/* Border effect - simulated with a div since :host::before is tricky */
-.card-border {
+/* Every full-bleed layer stacked over the card. */
+.card-border,
+.texture-overlay,
+.holo-overlay,
+.glare,
+.glitter-layer,
+.holographic-grid {
     position: absolute;
     inset: 0;
-    border-radius: var(--card-radius, 15px);
+    border-radius: var(--card-radius);
+    pointer-events: none;
+}
+
+/* Border effect - simulated with a div since :host::before is tricky */
+.card-border {
     padding: 8px;
     background: linear-gradient(
         135deg,
@@ -46,8 +66,7 @@ svg {
         linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    z-index: 5;
-    pointer-events: none;
+    z-index: var(--z-border);
     filter: brightness(0.5);
 }
 
@@ -83,6 +102,17 @@ svg {
     z-index: 20 !important;
 }
 
+/* Reverse rotation: the incoming card is parked at the slide-out spot without animating,
+   then released so the exit plays backwards. */
+:host(.no-transition) {
+    transition: none !important;
+}
+
+:host(.slide-in) {
+    transition: transform 0.4s ease-out;
+    z-index: 20 !important;
+}
+
 /* Only while hovered: the tilt transform is rewritten on every frame there. */
 :host([data-pos="0"]:hover),
 :host(.grid-mode:hover) {
@@ -97,8 +127,13 @@ svg {
     display: flex;
     flex-direction: column;
     padding: 21px;
-    z-index: 2;
+    z-index: var(--z-inner);
     box-sizing: border-box;
+    background: linear-gradient(
+        to bottom right,
+        var(--bg-from, #0a0a0a),
+        var(--bg-to, #1a1a1a)
+    );
 }
 
 /* Header */
@@ -150,7 +185,7 @@ svg {
 .card-image-container {
     flex: 1;
     position: relative;
-    border: 4px solid rgba(255, 255, 255, 0.3);
+    border: 4px solid var(--glass-30);
     box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
     border-radius: 8px;
     overflow: hidden;
@@ -162,13 +197,12 @@ svg {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.3s ease;
 }
 
 /* Body */
 .card-body {
     background: rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--glass-20);
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 10px;
@@ -179,7 +213,7 @@ svg {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--glass-10);
     padding-bottom: 8px;
 }
 
@@ -250,8 +284,8 @@ svg {
         transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
         box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
         text-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid var(--glass-20);
+    background: var(--glass-10);
     color: white;
     text-shadow: 0 1px 2px black;
     cursor: pointer;
@@ -272,7 +306,7 @@ svg {
     background: linear-gradient(
         90deg,
         transparent,
-        rgba(255, 255, 255, 0.3),
+        var(--glass-30),
         transparent
     );
     transform: translateX(-100%);
@@ -285,31 +319,31 @@ svg {
 
 .action-btn:hover {
     background: white;
-    color: black;
+    color: var(--brand, black);
     border-color: white;
     transform: translateY(-3px) scale(1.05);
     text-shadow: none;
-    box-shadow: 0 1px 10px rgba(255, 255, 255, 0.6);
+    box-shadow: 0 1px 10px var(--glass-60);
 }
 
 .action-btn:active {
     transform: translateY(-1px) scale(1.02);
 }
 
-.action-btn.linkedin:hover {
-    color: #0077b5;
+.action-btn.linkedin {
+    --brand: #0077b5;
 }
-.action-btn.email:hover {
-    color: #ea4335;
+.action-btn.email {
+    --brand: #ea4335;
 }
-.action-btn.github:hover {
-    color: #333;
+.action-btn.github {
+    --brand: #333;
 }
-.action-btn.twitter:hover {
-    color: #1da1f2;
+.action-btn.twitter {
+    --brand: #1da1f2;
 }
-.action-btn.instagram:hover {
-    color: #e1306c;
+.action-btn.instagram {
+    --brand: #e1306c;
 }
 
 /* Footer */
@@ -322,7 +356,7 @@ svg {
     background: rgba(0, 0, 0, 0.5);
     padding: 8px 14px;
     border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--glass-10);
     font-weight: 600;
 }
 
@@ -337,9 +371,9 @@ svg {
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.6);
+    border: 2px solid var(--glass-30);
+    background: var(--glass-10);
+    color: var(--glass-60);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -352,120 +386,99 @@ svg {
 
 .theme-btn:hover {
     transform: scale(1.15);
-    border-color: rgba(255, 255, 255, 0.6);
-    background: rgba(255, 255, 255, 0.2);
+    border-color: var(--glass-60);
+    background: var(--glass-20);
     color: white;
 }
 
-/* Themes */
+/* Themes: only the four colours change, the rules that consume them live above.
+   Page-background hues come from :root so JS and CSS share one source. */
 :host([theme="dark"]) {
-    --accent: #888;
+    --accent: var(--color-dark, #888);
     --accent-light: #aaa;
-}
-:host([theme="dark"]) .card-inner {
-    background: linear-gradient(to bottom right, #0a0a0a, #1a1a1a);
+    --bg-from: var(--bg-dark, #0a0a0a);
+    --bg-to: #1a1a1a;
 }
 
 :host([theme="fire"]) {
     --accent: var(--color-fire, #ff9d9d);
     --accent-light: #ffc1c1;
-}
-:host([theme="fire"]) .card-inner {
-    background: linear-gradient(to bottom right, #4a0000, #800000);
+    --bg-from: var(--bg-fire, #4a0000);
+    --bg-to: #800000;
 }
 
 :host([theme="electric"]) {
     --accent: var(--color-electric, #ffec9d);
     --accent-light: #fff5c5;
-}
-:host([theme="electric"]) .card-inner {
-    background: linear-gradient(to bottom right, #5e4b00, #b89b00);
+    --bg-from: var(--bg-electric, #5e4b00);
+    --bg-to: #b89b00;
 }
 
 :host([theme="psychic"]) {
     --accent: var(--color-psychic, #d89dff);
     --accent-light: #e9c9ff;
-}
-:host([theme="psychic"]) .card-inner {
-    background: linear-gradient(to bottom right, #2a004a, #550088);
+    --bg-from: var(--bg-psychic, #2a004a);
+    --bg-to: #550088;
 }
 
 :host([theme="grass"]) {
     --accent: var(--color-grass, #6dbf7a);
     --accent-light: #9dd6a5;
-}
-:host([theme="grass"]) .card-inner {
-    background: linear-gradient(to bottom right, #0d3d1f, #1a5c2e);
+    --bg-from: var(--bg-grass, #0d3d1f);
+    --bg-to: #1a5c2e;
 }
 
 :host([theme="ice"]) {
     --accent: var(--color-ice, #9de4ff);
     --accent-light: #d4f4ff;
-}
-:host([theme="ice"]) .card-inner {
-    background: linear-gradient(to bottom right, #0a3d52, #1a5c7a);
+    --bg-from: var(--bg-ice, #0a3d52);
+    --bg-to: #1a5c7a;
 }
 
 /* Effects */
 .texture-overlay {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--card-radius, 15px);
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.5'/%3E%3C/svg%3E");
     mix-blend-mode: overlay;
     opacity: 0.4;
-    z-index: 3;
-    pointer-events: none;
+    z-index: var(--z-texture);
 }
 
 .holo-overlay {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--card-radius, 15px);
     background: linear-gradient(
         115deg,
         transparent 0%,
-        rgba(255, 255, 255, 0.2) 15%,
+        var(--glass-20) 15%,
         rgba(255, 0, 220, 0.3) 25%,
         rgba(0, 255, 255, 0.3) 35%,
-        rgba(255, 255, 255, 0.2) 45%,
+        var(--glass-20) 45%,
         transparent 50%
     );
     background-size: 300% 300%;
     background-position: var(--mx, 0%) var(--my, 0%);
     mix-blend-mode: color-dodge;
     opacity: 0.6;
-    z-index: 4;
+    z-index: var(--z-holo);
     filter: brightness(0.8) contrast(1.5);
-    pointer-events: none;
 }
 
 .glare {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--card-radius, 15px);
     background: radial-gradient(
         farthest-corner circle at var(--mx, 50%) var(--my, 50%),
-        rgba(255, 255, 255, 0.6) 0%,
+        var(--glass-60) 0%,
         rgba(0, 0, 0, 0.2) 90%
     );
     mix-blend-mode: overlay;
     opacity: var(--glare-opacity, 0);
-    z-index: 6;
+    z-index: var(--z-glare);
     transition: opacity 0.2s;
-    pointer-events: none;
 }
 
 .glitter-layer {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--card-radius, 15px);
     overflow: hidden;
     mix-blend-mode: screen;
-    z-index: 8;
+    z-index: var(--z-glitter);
     opacity: 0.1;
     transition: opacity 0.3s ease;
-    pointer-events: none;
 }
 
 /* Oversized so the translation never exposes an edge; the +80px background offset keeps the
@@ -491,9 +504,6 @@ svg {
 }
 
 .holographic-grid {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--card-radius, 15px);
     background-image: repeating-linear-gradient(
             0deg,
             transparent,
@@ -508,10 +518,9 @@ svg {
             rgba(255, 255, 255, 0.05) 2px,
             rgba(255, 255, 255, 0.05) 4px
         );
-    z-index: 5;
+    z-index: var(--z-grid);
     opacity: 0.1;
     transition: opacity 0.3s ease;
-    pointer-events: none;
 }
 
 :host([data-pos="0"]:hover) .holographic-grid,
@@ -528,7 +537,7 @@ svg {
     }
 }
 
-/* Mobile Responsive */
+/* Mobile Responsive. Keep 600 in sync with CONFIG.MOBILE_BREAKPOINT and responsive.css. */
 @media (max-width: 600px) {
     /* Hide heavy effects on mobile */
     .texture-overlay,
@@ -575,7 +584,6 @@ svg {
     .card-body {
         padding: 8px;
         margin-bottom: 6px;
-        backdrop-filter: none;
     }
 
     .skill-row {
@@ -638,14 +646,28 @@ svg {
 /* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
     :host,
-    .card-image,
+    .card-border,
+    .texture-overlay,
+    .holographic-grid,
     .glare,
     .holo-overlay,
     .glitter-layer,
     .glitter-layer::before,
     .theme-btn,
-    .action-btn {
+    .action-btn,
+    .action-btn::before {
         transition: none !important;
         animation: none !important;
+    }
+
+    /* transition:none only removes the tween; the jump has to go too. */
+    .action-btn:hover,
+    .action-btn:active,
+    .theme-btn:hover {
+        transform: none;
+    }
+
+    .action-btn:hover::before {
+        transform: translateX(-100%);
     }
 }

@@ -160,7 +160,9 @@ export class InteractionManager {
         }
 
         e.preventDefault();
-        this.deckManager.rotateCards();
+        this.deckManager.rotateCards(
+            e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1
+        );
     }
 
     handleMouseMove(e) {
@@ -211,11 +213,13 @@ export class InteractionManager {
      */
     applyTilt(card, { rotateX, rotateY, scale = 1, glare, mx, my }) {
         const scalePart = scale !== 1 ? ` scale(${scale})` : "";
-        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)${scalePart}`;
+        card.style.transform = `perspective(${CONFIG.TILT_PERSPECTIVE}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)${scalePart}`;
         this.setCardVars(card, { mx, my, glare });
     }
 
     applyCardEffect(card, clientX, clientY) {
+        if (Utils.prefersReducedMotion()) return;
+
         const rect = this.getCardRect(card);
         const x = clientX - rect.left;
         const y = clientY - rect.top;
@@ -233,8 +237,8 @@ export class InteractionManager {
         this.applyTilt(card, {
             rotateX,
             rotateY,
-            scale: 1.02,
-            glare: 1,
+            scale: CONFIG.TILT_SCALE,
+            glare: CONFIG.GLARE_MOUSE,
             mx: pctX,
             my: pctY,
         });
@@ -253,17 +257,18 @@ export class InteractionManager {
 
         // A single trackpad flick emits dozens of events over ~500ms; require a whole
         // gesture per rotation instead of cycling several cards at once.
-        this.wheelAccum = Math.max(0, this.wheelAccum + e.deltaY);
+        this.wheelAccum += e.deltaY;
 
         clearTimeout(this.wheelResetTimer);
         this.wheelResetTimer = setTimeout(() => {
             this.wheelAccum = 0;
         }, 200);
 
-        if (this.wheelAccum >= CONFIG.WHEEL_THRESHOLD) {
-            this.wheelAccum = 0;
-            this.deckManager.rotateCards();
-        }
+        if (Math.abs(this.wheelAccum) < CONFIG.WHEEL_THRESHOLD) return;
+
+        const direction = this.wheelAccum > 0 ? 1 : -1;
+        this.wheelAccum = 0;
+        this.deckManager.rotateCards(direction);
     }
 
     handleTouchStart(e) {
@@ -275,10 +280,10 @@ export class InteractionManager {
         const touchEndY = e.changedTouches[0].clientY;
         const swipeDistance = touchEndY - this.state.touchStartY;
 
-        if (swipeDistance > CONFIG.SWIPE_THRESHOLD) {
-            this.hideSwipeHint();
-            this.deckManager.rotateCards();
-        }
+        if (Math.abs(swipeDistance) < CONFIG.SWIPE_THRESHOLD) return;
+
+        this.hideSwipeHint();
+        this.deckManager.rotateCards(swipeDistance > 0 ? 1 : -1);
     }
 
     handleOrientation(event) {
@@ -307,6 +312,8 @@ export class InteractionManager {
     }
 
     applyOrientation(card, beta, gamma) {
+        if (Utils.prefersReducedMotion()) return;
+
         const relativeBeta = beta - this.state.gyroBase.beta;
         const relativeGamma = gamma - this.state.gyroBase.gamma;
 
@@ -327,7 +334,7 @@ export class InteractionManager {
         this.applyTilt(card, {
             rotateX: -rotateX,
             rotateY,
-            glare: 0.8,
+            glare: CONFIG.GLARE_GYRO,
             mx: pctX,
             my: pctY,
         });

@@ -63,13 +63,13 @@ export class DeckManager {
         if (!this.isGridView) this.updatePositions();
     }
 
-    updatePositions() {
+    updatePositions(keepSlideOut = null) {
         if (this.isGridView) return;
 
         this.cards.forEach((card, index) => {
             card.dataset.pos = index;
-            card.classList.remove("slide-out");
             card.style.transform = "";
+            if (card !== keepSlideOut) card.classList.remove("slide-out");
         });
 
         const activeCard = this.cards[0];
@@ -80,8 +80,13 @@ export class DeckManager {
     }
 
     updateBackground(themeName) {
+        // Colours live in :root so CSS and JS cannot drift apart.
+        const root = document.documentElement;
+        const styles = getComputedStyle(root);
         const themeColor =
-            CONFIG.THEME_COLORS[themeName] || CONFIG.THEME_COLORS.default;
+            styles.getPropertyValue(`--bg-${themeName}`).trim() ||
+            styles.getPropertyValue("--bg-default").trim();
+
         this.body.style.backgroundColor = themeColor;
 
         if (this.swirlBackground) {
@@ -89,26 +94,65 @@ export class DeckManager {
         }
     }
 
-    rotateCards() {
+    /**
+     * @param {number} direction 1 sends the front card to the back, -1 brings the back one forward.
+     */
+    rotateCards(direction = 1) {
         if (this.isAnimating || this.isGridView) return;
-
-        const topCard = this.cards[0];
-        if (!topCard) return;
+        if (this.cards.length < 2) return;
 
         this.isAnimating = true;
-        topCard.classList.add("slide-out");
 
-        let done = false;
-        const finish = () => {
-            if (done) return;
-            done = true;
-            topCard.removeEventListener("transitionend", onEnd);
-            clearTimeout(fallback);
+        if (direction < 0) this.rotateBackward();
+        else this.rotateForward();
+    }
 
+    rotateForward() {
+        const outgoing = this.cards[0];
+        outgoing.classList.add("slide-out");
+
+        this.whenSettled(outgoing, () => {
             // Rotate the array instead of moving DOM elements
             this.cards.push(this.cards.shift());
-            topCard.classList.remove("slide-out");
             this.updatePositions();
+        });
+    }
+
+    rotateBackward() {
+        const incoming = this.cards[this.cards.length - 1];
+
+        // Park it where the forward animation ends, without animating, then release it:
+        // the entry is the exit played backwards.
+        incoming.classList.add("no-transition", "slide-out");
+        void incoming.offsetWidth;
+
+        this.cards.unshift(this.cards.pop());
+        this.updatePositions(incoming);
+        void incoming.offsetWidth;
+
+        incoming.classList.remove("no-transition");
+        incoming.classList.add("slide-in");
+        incoming.classList.remove("slide-out");
+
+        this.whenSettled(incoming, () => {
+            incoming.classList.remove("slide-in");
+        });
+    }
+
+    /**
+     * transitionend never arrives under reduced motion or in a background tab, so the
+     * fallback timer is what actually guarantees the deck never gets stuck.
+     */
+    whenSettled(card, done) {
+        let settled = false;
+
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            card.removeEventListener("transitionend", onEnd);
+            clearTimeout(fallback);
+
+            done();
 
             setTimeout(() => {
                 this.isAnimating = false;
@@ -116,13 +160,10 @@ export class DeckManager {
         };
 
         const onEnd = (e) => {
-            if (e.target === topCard && e.propertyName === "transform") {
-                finish();
-            }
+            if (e.target === card && e.propertyName === "transform") finish();
         };
-        topCard.addEventListener("transitionend", onEnd);
+        card.addEventListener("transitionend", onEnd);
 
-        // Safety net in case the transition is skipped or interrupted.
         const fallback = setTimeout(
             finish,
             CONFIG.ANIMATION_DELAY + CONFIG.ANIMATION_BUFFER
