@@ -102,6 +102,12 @@ svg {
     z-index: 20 !important;
 }
 
+/* Rotating backwards the card leaves from the back of the stack, so it must stay
+   hidden behind the others until it emerges below the deck. */
+:host(.slide-out.from-back) {
+    z-index: 0 !important;
+}
+
 /* Only while hovered: the tilt transform is rewritten on every frame there. */
 :host([data-pos="0"]:hover),
 :host(.grid-mode:hover) {

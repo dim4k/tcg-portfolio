@@ -69,7 +69,7 @@ export class DeckManager {
         this.cards.forEach((card, index) => {
             card.dataset.pos = index;
             card.style.transform = "";
-            card.classList.remove("slide-out");
+            card.classList.remove("slide-out", "from-back");
         });
 
         const activeCard = this.cards[0];
@@ -111,6 +111,7 @@ export class DeckManager {
             : this.cards[this.cards.length - 1];
 
         moving.classList.add("slide-out");
+        if (!forward) moving.classList.add("from-back");
 
         this.whenSettled(moving, () => {
             // Rotate the array instead of moving DOM elements
