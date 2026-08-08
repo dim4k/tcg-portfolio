@@ -63,13 +63,13 @@ export class DeckManager {
         if (!this.isGridView) this.updatePositions();
     }
 
-    updatePositions(keepSlideOut = null) {
+    updatePositions() {
         if (this.isGridView) return;
 
         this.cards.forEach((card, index) => {
             card.dataset.pos = index;
             card.style.transform = "";
-            if (card !== keepSlideOut) card.classList.remove("slide-out");
+            card.classList.remove("slide-out");
         });
 
         const activeCard = this.cards[0];
@@ -103,39 +103,20 @@ export class DeckManager {
 
         this.isAnimating = true;
 
-        if (direction < 0) this.rotateBackward();
-        else this.rotateForward();
-    }
+        // Both directions play the same move: the card that has to change ends drops out
+        // of the stack, then climbs back in at the other end.
+        const forward = direction >= 0;
+        const moving = forward
+            ? this.cards[0]
+            : this.cards[this.cards.length - 1];
 
-    rotateForward() {
-        const outgoing = this.cards[0];
-        outgoing.classList.add("slide-out");
+        moving.classList.add("slide-out");
 
-        this.whenSettled(outgoing, () => {
+        this.whenSettled(moving, () => {
             // Rotate the array instead of moving DOM elements
-            this.cards.push(this.cards.shift());
+            if (forward) this.cards.push(this.cards.shift());
+            else this.cards.unshift(this.cards.pop());
             this.updatePositions();
-        });
-    }
-
-    rotateBackward() {
-        const incoming = this.cards[this.cards.length - 1];
-
-        // Park it where the forward animation ends, without animating, then release it:
-        // the entry is the exit played backwards.
-        incoming.classList.add("no-transition", "slide-out");
-        void incoming.offsetWidth;
-
-        this.cards.unshift(this.cards.pop());
-        this.updatePositions(incoming);
-        void incoming.offsetWidth;
-
-        incoming.classList.remove("no-transition");
-        incoming.classList.add("slide-in");
-        incoming.classList.remove("slide-out");
-
-        this.whenSettled(incoming, () => {
-            incoming.classList.remove("slide-in");
         });
     }
 

@@ -5,7 +5,7 @@ export const CONFIG = {
     // Keep in sync with the 600px media queries in responsive.css and tcg-card.css.
     MOBILE_BREAKPOINT: 600,
     SWIPE_THRESHOLD: 20,
-    // Must match the .slide-out / .slide-in transition duration in tcg-card.css (0.4s).
+    // Must match the .slide-out transition duration in tcg-card.css (0.4s).
     ANIMATION_DELAY: 400,
     ANIMATION_BUFFER: 100,
     // One trackpad flick emits dozens of events; one mouse notch is ~100.

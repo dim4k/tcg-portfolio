@@ -102,17 +102,6 @@ svg {
     z-index: 20 !important;
 }
 
-/* Reverse rotation: the incoming card is parked at the slide-out spot without animating,
-   then released so the exit plays backwards. */
-:host(.no-transition) {
-    transition: none !important;
-}
-
-:host(.slide-in) {
-    transition: transform 0.4s ease-out;
-    z-index: 20 !important;
-}
-
 /* Only while hovered: the tilt transform is rewritten on every frame there. */
 :host([data-pos="0"]:hover),
 :host(.grid-mode:hover) {
