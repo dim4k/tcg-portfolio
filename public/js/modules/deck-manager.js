@@ -1,5 +1,6 @@
 import { CONFIG } from "../config.js";
 import { Utils } from "./utils.js";
+import { icon } from "./icons.js";
 import { SwirlBackground } from "./swirl-background.js";
 
 export class DeckManager {
@@ -25,14 +26,22 @@ export class DeckManager {
     init() {
         this.cards = Array.from(document.querySelectorAll("tcg-card"));
         this.updatePositions();
-        this.initSwirlBackground();
+        this.syncBackground();
 
         if (this.toggleBtn) {
             this.toggleBtn.addEventListener("click", () => this.toggleView());
         }
+
+        // Rotating a phone or resizing across the breakpoint must re-evaluate the background.
+        Utils.mobileMql.addEventListener("change", () => this.syncBackground());
+        Utils.reducedMotionMql.addEventListener("change", () =>
+            this.syncBackground()
+        );
     }
 
     toggleView() {
+        if (!this.deckContainer || !this.toggleBtn) return;
+
         this.isGridView = !this.isGridView;
         const state = this.isGridView
             ? CONFIG.VIEW_TOGGLE.grid
@@ -40,16 +49,11 @@ export class DeckManager {
 
         this.deckContainer.classList.toggle("grid-view", this.isGridView);
         this.body.classList.toggle("grid-active", this.isGridView);
-        this.toggleBtn.innerHTML = `<i class="${state.icon}"></i> <span>${state.label}</span>`;
+        this.toggleBtn.querySelector("svg")?.replaceWith(icon(state.icon));
+        this.toggleBtn.querySelector("span").textContent = state.label;
+        this.toggleBtn.setAttribute("aria-pressed", String(this.isGridView));
 
-        // Pause the animated background while browsing the grid, resume otherwise.
-        if (this.swirlBackground) {
-            if (this.isGridView) {
-                this.swirlBackground.disable();
-            } else {
-                this.swirlBackground.enable();
-            }
-        }
+        this.syncBackground();
 
         this.cards.forEach((card) => {
             card.classList.toggle("grid-mode", this.isGridView);
@@ -57,10 +61,6 @@ export class DeckManager {
         });
 
         if (!this.isGridView) this.updatePositions();
-    }
-
-    getCards() {
-        return this.cards;
     }
 
     updatePositions() {
@@ -84,7 +84,7 @@ export class DeckManager {
             CONFIG.THEME_COLORS[themeName] || CONFIG.THEME_COLORS.default;
         this.body.style.backgroundColor = themeColor;
 
-        if (this.swirlBackground && !Utils.isMobile()) {
+        if (this.swirlBackground) {
             this.swirlBackground.setTheme(themeName);
         }
     }
@@ -129,19 +129,24 @@ export class DeckManager {
         );
     }
 
-    initSwirlBackground() {
-        if (!Utils.isMobile() && !Utils.prefersReducedMotion()) {
-            this.swirlBackground = new SwirlBackground("canvas-background");
+    // Single decision point for whether the animated background should be running.
+    syncBackground() {
+        const wanted =
+            !this.isGridView &&
+            !Utils.isMobile() &&
+            !Utils.prefersReducedMotion();
 
-            const cards = this.getCards();
-            const activeCard = cards[0];
-            let initialTheme = "default";
-
-            if (activeCard) {
-                initialTheme = activeCard.getAttribute("theme") || "default";
-            }
-
-            this.swirlBackground.setTheme(initialTheme);
+        if (wanted && !this.swirlBackground) {
+            this.swirlBackground = SwirlBackground.create("canvas-background");
+            const activeCard = this.cards[0];
+            this.swirlBackground?.setTheme(
+                activeCard?.getAttribute("theme") || "default"
+            );
         }
+
+        if (!this.swirlBackground) return;
+
+        if (wanted) this.swirlBackground.enable();
+        else this.swirlBackground.disable();
     }
 }

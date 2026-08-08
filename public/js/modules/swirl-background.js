@@ -1,7 +1,7 @@
 import { SimplexNoise } from "./simplex-noise.js";
 
 // Utility functions
-const { PI, cos, sin, abs, sqrt, pow, round, random, atan2 } = Math;
+const { PI, cos, sin, abs, random } = Math;
 const TAU = 2 * PI;
 const rand = (n) => n * random();
 const randRange = (n) => n - rand(2 * n);
@@ -11,10 +11,40 @@ const fadeInOut = (t, m) => {
 };
 const lerp = (n1, n2, speed) => (1 - speed) * n1 + speed * n2;
 
+const BACKDROP = "hsla(0,0%,5%,1)";
+// Compensates for the two additive glow passes the renderer used to composite per frame.
+const PARTICLE_ALPHA = 1;
+const HUE_STEPS = 360;
+const ALPHA_STEPS = 32;
+
+// Quantized colour cache: without it a fresh hsla() string is allocated and re-parsed
+// for every particle of every frame (~9k allocations/s).
+const colorLut = new Array(HUE_STEPS * ALPHA_STEPS);
+const grayLut = new Array(ALPHA_STEPS);
+
+function strokeColor(hue, saturated, alpha) {
+    let a = (alpha * ALPHA_STEPS) | 0;
+    if (a < 0) a = 0;
+    else if (a >= ALPHA_STEPS) a = ALPHA_STEPS - 1;
+    const quantized = (a + 0.5) / ALPHA_STEPS;
+
+    if (!saturated) {
+        return (grayLut[a] ??= `hsla(0,0%,60%,${quantized})`);
+    }
+
+    const h = (((hue | 0) % HUE_STEPS) + HUE_STEPS) % HUE_STEPS;
+    const idx = h * ALPHA_STEPS + a;
+    return (colorLut[idx] ??= `hsla(${h},100%,60%,${quantized})`);
+}
+
 export class SwirlBackground {
-    constructor(canvasId) {
-        this.canvasElement = document.getElementById(canvasId);
-        if (!this.canvasElement) return;
+    static create(canvasId) {
+        const canvas = document.getElementById(canvasId);
+        return canvas ? new SwirlBackground(canvas) : null;
+    }
+
+    constructor(canvas) {
+        this.canvas = canvas;
         // Configuration
         this.particleCount = 150;
         this.particlePropCount = 9;
@@ -33,34 +63,34 @@ export class SwirlBackground {
 
         // Theme colors (hue values)
         this.themeHues = {
-            dark: { base: 0, range: 0 }, // Grayscale
-            fire: { base: 0, range: 80 }, // Red-Orange
-            electric: { base: 45, range: 30 }, // Yellow
-            psychic: { base: 270, range: 40 }, // Purple
-            grass: { base: 120, range: 40 }, // Green
-            ice: { base: 190, range: 40 }, // Cyan-Blue
-            default: { base: 220, range: 100 }, // Blue-Purple
+            dark: { base: 0, range: 0, saturated: false }, // Grayscale
+            fire: { base: 0, range: 80, saturated: true }, // Red-Orange
+            electric: { base: 45, range: 30, saturated: true }, // Yellow
+            psychic: { base: 270, range: 40, saturated: true }, // Purple
+            grass: { base: 120, range: 40, saturated: true }, // Green
+            ice: { base: 190, range: 40, saturated: true }, // Cyan-Blue
+            default: { base: 220, range: 100, saturated: true }, // Blue-Purple
         };
 
         this.currentTheme = this.themeHues.default;
-        this.canvas = {};
-        this.ctx = {};
-        this.center = [];
+        this.ctx = null;
+        this.center = [0, 0];
         this.tick = 0;
-        this.isEnabled = true;
-        this.intendedEnabled = true;
+        this.wanted = true;
         this.rafId = null;
         this.resizeTimeout = null;
+        this.boundDraw = () => this.draw();
 
         this.init();
     }
 
     init() {
-        this.createCanvas();
+        // Opaque: the whole surface is repainted with BACKDROP every frame.
+        this.ctx = this.canvas.getContext("2d", { alpha: false });
         this.resize();
         this.initParticles();
         this.bindEvents();
-        this.draw();
+        this.sync();
     }
 
     bindEvents() {
@@ -71,42 +101,19 @@ export class SwirlBackground {
         });
 
         // Pause rendering when the tab is hidden to save CPU/battery.
-        document.addEventListener("visibilitychange", () => {
-            if (document.hidden) {
-                this.stop();
-            } else if (this.intendedEnabled) {
-                this.start();
-            }
-        });
-    }
-
-    createCanvas() {
-        this.canvas.a = document.createElement("canvas");
-        this.canvas.b = this.canvasElement;
-        this.canvas.b.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        `;
-        this.ctx.a = this.canvas.a.getContext("2d");
-        this.ctx.b = this.canvas.b.getContext("2d");
+        document.addEventListener("visibilitychange", () => this.sync());
     }
 
     resize() {
         const { innerWidth, innerHeight } = window;
 
-        this.canvas.a.width = innerWidth;
-        this.canvas.a.height = innerHeight;
-        this.ctx.a.drawImage(this.canvas.b, 0, 0);
+        // Deliberately CSS-pixel sized: the output is blurred by the compositor, so a
+        // devicePixelRatio backing store would cost up to 4x the fill rate for no visible gain.
+        this.canvas.width = innerWidth;
+        this.canvas.height = innerHeight;
 
-        this.canvas.b.width = innerWidth;
-        this.canvas.b.height = innerHeight;
-        this.ctx.b.drawImage(this.canvas.a, 0, 0);
-
-        this.center[0] = 0.5 * this.canvas.a.width;
-        this.center[1] = 0.5 * this.canvas.a.height;
+        this.center[0] = 0.5 * innerWidth;
+        this.center[1] = 0.5 * innerHeight;
     }
 
     initParticles() {
@@ -124,20 +131,16 @@ export class SwirlBackground {
     }
 
     initParticle(i) {
-        const x = rand(this.canvas.a.width);
-        const y = this.center[1] + randRange(this.rangeY);
-        const vx = 0;
-        const vy = 0;
-        const life = 0;
-        const ttl = this.baseTTL + rand(this.rangeTTL);
-        const speed = this.baseSpeed + rand(this.rangeSpeed);
-        const radius = this.baseRadius + rand(this.rangeRadius);
-        const hue = this.currentTheme.base + rand(this.currentTheme.range);
-
-        this.particleProps.set(
-            [x, y, vx, vy, life, ttl, speed, radius, hue],
-            i
-        );
+        const props = this.particleProps;
+        props[i] = rand(this.canvas.width);
+        props[i + 1] = this.center[1] + randRange(this.rangeY);
+        props[i + 2] = 0; // vx
+        props[i + 3] = 0; // vy
+        props[i + 4] = 0; // life
+        props[i + 5] = this.baseTTL + rand(this.rangeTTL);
+        props[i + 6] = this.baseSpeed + rand(this.rangeSpeed);
+        props[i + 7] = this.baseRadius + rand(this.rangeRadius);
+        props[i + 8] = this.currentTheme.base + rand(this.currentTheme.range);
     }
 
     updateParticle(i) {
@@ -180,34 +183,28 @@ export class SwirlBackground {
         this.particleProps[i4] = vy;
         this.particleProps[i5] = life;
 
-        if (this.checkBounds(x, y) || life > ttl) {
+        if (this.checkBounds(x2, y2) || life > ttl) {
             this.initParticle(i);
         }
     }
 
+    // lineCap and the composite mode are set once per frame in draw().
     drawParticle(x, y, x2, y2, life, ttl, radius, hue) {
-        this.ctx.a.save();
-        this.ctx.a.lineCap = "round";
-        this.ctx.a.lineWidth = radius;
-        const saturation = hue === 0 ? 0 : 100;
-        this.ctx.a.strokeStyle = `hsla(${hue},${saturation}%,60%,${
-            fadeInOut(life, ttl) * 0.5
-        })`;
-        this.ctx.a.beginPath();
-        this.ctx.a.moveTo(x, y);
-        this.ctx.a.lineTo(x2, y2);
-        this.ctx.a.stroke();
-        this.ctx.a.closePath();
-        this.ctx.a.restore();
+        const ctx = this.ctx;
+        ctx.lineWidth = radius;
+        ctx.strokeStyle = strokeColor(
+            hue,
+            this.currentTheme.saturated,
+            fadeInOut(life, ttl) * PARTICLE_ALPHA
+        );
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
     }
 
     checkBounds(x, y) {
-        return (
-            x > this.canvas.a.width ||
-            x < 0 ||
-            y > this.canvas.a.height ||
-            y < 0
-        );
+        return x > this.canvas.width || x < 0 || y > this.canvas.height || y < 0;
     }
 
     drawParticles() {
@@ -220,41 +217,23 @@ export class SwirlBackground {
         }
     }
 
-    renderGlow() {
-        this.ctx.b.save();
-        this.ctx.b.filter = "blur(8px) brightness(150%)";
-        this.ctx.b.globalCompositeOperation = "lighter";
-        this.ctx.b.drawImage(this.canvas.a, 0, 0);
-        this.ctx.b.restore();
-
-        this.ctx.b.save();
-        this.ctx.b.filter = "blur(4px) brightness(150%)";
-        this.ctx.b.globalCompositeOperation = "lighter";
-        this.ctx.b.drawImage(this.canvas.a, 0, 0);
-        this.ctx.b.restore();
-    }
-
-    renderToScreen() {
-        this.ctx.b.save();
-        this.ctx.b.globalCompositeOperation = "lighter";
-        this.ctx.b.drawImage(this.canvas.a, 0, 0);
-        this.ctx.b.restore();
-    }
-
+    // The glow used to be two full-screen ctx.filter blur passes per frame; it is now a single
+    // CSS filter on the canvas element (see #canvas-background in base.css).
     draw() {
-        if (!this.isEnabled) return;
-
         this.tick++;
 
-        this.ctx.a.clearRect(0, 0, this.canvas.a.width, this.canvas.a.height);
-        this.ctx.b.fillStyle = "hsla(0,0%,5%,1)";
-        this.ctx.b.fillRect(0, 0, this.canvas.a.width, this.canvas.a.height);
+        const ctx = this.ctx;
+        const { width, height } = this.canvas;
 
+        ctx.globalCompositeOperation = "source-over";
+        ctx.fillStyle = BACKDROP;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.globalCompositeOperation = "lighter";
+        ctx.lineCap = "round";
         this.drawParticles();
-        this.renderGlow();
-        this.renderToScreen();
 
-        this.rafId = requestAnimationFrame(() => this.draw());
+        this.rafId = requestAnimationFrame(this.boundDraw);
     }
 
     setTheme(theme) {
@@ -273,29 +252,29 @@ export class SwirlBackground {
         }
     }
 
-    start() {
-        if (this.rafId !== null) return; // already running
-        this.isEnabled = true;
-        this.draw();
-    }
+    // Single source of truth for "should the loop be running".
+    sync() {
+        const shouldRun = this.wanted && !document.hidden;
 
-    stop() {
-        this.isEnabled = false;
-        if (this.rafId !== null) {
+        if (shouldRun && this.rafId === null) {
+            this.rafId = requestAnimationFrame(this.boundDraw);
+        } else if (!shouldRun && this.rafId !== null) {
             cancelAnimationFrame(this.rafId);
             this.rafId = null;
         }
     }
 
     enable() {
-        this.intendedEnabled = true;
-        if (!document.hidden) this.start();
+        this.wanted = true;
+        this.canvas.classList.remove("is-paused");
+        this.sync();
     }
 
     disable() {
-        this.intendedEnabled = false;
-        this.stop();
-        this.ctx.b.clearRect(0, 0, this.canvas.b.width, this.canvas.b.height);
+        this.wanted = false;
+        // display:none drops the composited layer entirely, unlike clearing the pixels.
+        this.canvas.classList.add("is-paused");
+        this.sync();
     }
 }
 

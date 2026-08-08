@@ -1,46 +1,55 @@
-import { CONFIG } from "./config.js";
 import { CardRenderer } from "./modules/card-renderer.js";
 import { DeckManager } from "./modules/deck-manager.js";
 import { InteractionManager } from "./modules/interactions.js";
+import { icon } from "./modules/icons.js";
 import "./components/tcg-card.js";
 
+const LOADER_MIN_DISPLAY = 400;
+const LOADER_MAX_WAIT = 3000;
+const LOADER_FADE = 500;
+
 /**
- * Preload an image and resolve once it is loaded (or failed, to avoid
- * blocking the loader on a single broken asset).
+ * Resolve once the front card's image is on screen. Deliberately does not wait on
+ * `document.fonts.ready`: that resolves only after third-party font CDNs answer.
  */
-function preloadImage(src) {
+function heroImageReady() {
+    const img = document
+        .querySelector("tcg-card")
+        ?.shadowRoot?.querySelector(".card-image");
+
+    if (!img || img.complete) return Promise.resolve();
+
     return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = img.onerror = () => resolve();
-        img.src = src;
+        img.addEventListener("load", resolve, { once: true });
+        img.addEventListener("error", resolve, { once: true });
     });
 }
 
-/**
- * Hide the loading overlay once the page is visually ready: fonts loaded,
- * card images decoded, plus a short minimum so the spinner doesn't flash.
- */
 function hideLoaderWhenReady() {
     const loader = document.getElementById("app-loader");
     if (!loader) return;
 
-    const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
-    const imagesReady = Promise.all(
-        CONFIG.CARDS.map((card) => preloadImage(card.image))
-    );
-    const minDisplay = new Promise((resolve) => setTimeout(resolve, 400));
+    const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    Promise.all([fontsReady, imagesReady, minDisplay]).then(() => {
+    Promise.all([
+        timeout(LOADER_MIN_DISPLAY),
+        Promise.race([heroImageReady(), timeout(LOADER_MAX_WAIT)]),
+    ]).then(() => {
         loader.classList.add("is-hidden");
-        loader.addEventListener(
-            "transitionend",
-            () => loader.remove(),
-            { once: true }
-        );
+        loader.addEventListener("transitionend", () => loader.remove(), {
+            once: true,
+        });
+        // transitionend never fires under reduced motion or in a background tab.
+        setTimeout(() => loader.remove(), LOADER_FADE + 200);
     });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    // 0. Swap the static icon placeholders for their inline SVG
+    document.querySelectorAll("[data-icon]").forEach((placeholder) => {
+        placeholder.replaceWith(icon(placeholder.dataset.icon));
+    });
+
     // 1. Render Cards
     const renderer = new CardRenderer("deck");
     renderer.render();

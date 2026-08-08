@@ -1,15 +1,9 @@
 import { CONFIG } from "../config.js";
 import { Utils } from "../modules/utils.js";
-
-// Theme switcher buttons generated from the single source of truth (CONFIG.THEMES).
-const themeButtons = CONFIG.THEMES.map(
-    (t) =>
-        `<button class="theme-btn" data-theme="${t.id}" title="${t.label}" aria-label="${t.label} theme" aria-pressed="false"><i class="${t.icon}"></i></button>`
-).join("");
+import { icon } from "../modules/icons.js";
 
 const template = document.createElement("template");
 template.innerHTML = `
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <div class="card-border"></div>
 <div class="card-inner">
     <div class="card-header">
@@ -33,7 +27,7 @@ template.innerHTML = `
                 <h3></h3>
                 <p></p>
             </div>
-            <div class="damage"><i></i></div>
+            <div class="damage"></div>
         </div>
         
         <div class="skill-row row-2">
@@ -47,7 +41,7 @@ template.innerHTML = `
 
     <div class="card-footer">
         <div class="weakness"></div>
-        <div class="theme-switcher">${themeButtons}</div>
+        <div class="theme-switcher"></div>
     </div>
 </div>
 <div class="texture-overlay"></div>
@@ -57,44 +51,87 @@ template.innerHTML = `
 <div class="glitter-layer"></div>
 `;
 
+// Theme switcher buttons generated from the single source of truth (CONFIG.THEMES).
+const themeSwitcher = template.content.querySelector(".theme-switcher");
+CONFIG.THEMES.forEach((theme) => {
+    const btn = document.createElement("button");
+    btn.className = "theme-btn";
+    btn.dataset.theme = theme.id;
+    btn.title = theme.label;
+    btn.setAttribute("aria-label", `${theme.label} theme`);
+    btn.setAttribute("aria-pressed", "false");
+    btn.appendChild(icon(theme.icon));
+    themeSwitcher.appendChild(btn);
+});
+
 // Component styles are parsed once into a single constructable stylesheet that
 // every <tcg-card> instance adopts, instead of re-parsing a <link> per card.
-// (Font Awesome stays a <link> so its relative font url()s resolve correctly.)
+const SUPPORTS_CONSTRUCTABLE =
+    "adoptedStyleSheets" in Document.prototype &&
+    "replaceSync" in CSSStyleSheet.prototype;
+
 let sharedSheet = null;
-fetch("public/css/components/tcg-card.css")
-    .then((r) => r.text())
-    .then((css) => {
-        sharedSheet = new CSSStyleSheet();
-        sharedSheet.replaceSync(css);
-        // Adopt into any cards created before the sheet finished loading.
-        document
-            .querySelectorAll("tcg-card")
-            .forEach((card) => card.adoptSharedSheet());
+let fallbackCss = "";
+
+// Resolved against the module, not the document, so a sub-path deploy still works.
+const sheetReady = fetch(
+    new URL("../../css/components/tcg-card.css", import.meta.url)
+)
+    .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
     })
-    .catch(() => {});
+    .then((css) => {
+        if (SUPPORTS_CONSTRUCTABLE) {
+            sharedSheet = new CSSStyleSheet();
+            sharedSheet.replaceSync(css);
+        } else {
+            fallbackCss = css;
+        }
+    })
+    .catch((err) => {
+        console.error(`tcg-card styles failed to load: ${err.message}`);
+    });
 
 class TcgCard extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
         this.shadowRoot.appendChild(template.content.cloneNode(true));
-        this.adoptSharedSheet();
+
+        // Cards can be constructed before the stylesheet resolves, and before they are in
+        // the document, so each one subscribes instead of being collected afterwards.
+        if (!this.applyStyles()) sheetReady.then(() => this.applyStyles());
+
+        // One delegated listener instead of six per card, and nothing to leak on detach.
+        this.shadowRoot
+            .querySelector(".theme-switcher")
+            .addEventListener("click", (e) => this.handleThemeClick(e));
     }
 
-    adoptSharedSheet() {
-        if (
-            sharedSheet &&
-            !this.shadowRoot.adoptedStyleSheets.includes(sharedSheet)
-        ) {
-            this.shadowRoot.adoptedStyleSheets = [
-                ...this.shadowRoot.adoptedStyleSheets,
-                sharedSheet,
-            ];
+    applyStyles() {
+        if (sharedSheet) {
+            if (!this.shadowRoot.adoptedStyleSheets.includes(sharedSheet)) {
+                this.shadowRoot.adoptedStyleSheets = [
+                    ...this.shadowRoot.adoptedStyleSheets,
+                    sharedSheet,
+                ];
+            }
+            return true;
         }
+
+        if (fallbackCss) {
+            const style = document.createElement("style");
+            style.textContent = fallbackCss;
+            this.shadowRoot.prepend(style);
+            return true;
+        }
+
+        return false;
     }
 
     static get observedAttributes() {
-        return ["theme", "data-pos"];
+        return ["theme"];
     }
 
     attributeChangedCallback(name) {
@@ -122,26 +159,20 @@ class TcgCard extends HTMLElement {
         return this._data;
     }
 
-    connectedCallback() {
-        this.setupThemeSwitcher();
-    }
+    handleThemeClick(e) {
+        const btn = e.target.closest(".theme-btn");
+        if (!btn) return;
 
-    setupThemeSwitcher() {
-        const buttons = this.shadowRoot.querySelectorAll(".theme-btn");
-        buttons.forEach((btn) => {
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation(); // Prevent card click
-                const theme = btn.dataset.theme;
-                this.setAttribute("theme", theme);
-                this.dispatchEvent(
-                    new CustomEvent("theme-change", {
-                        detail: { theme },
-                        bubbles: true,
-                        composed: true,
-                    })
-                );
-            });
-        });
+        e.stopPropagation(); // Prevent card click
+        const theme = btn.dataset.theme;
+        this.setAttribute("theme", theme);
+        this.dispatchEvent(
+            new CustomEvent("theme-change", {
+                detail: { theme },
+                bubbles: true,
+                composed: true,
+            })
+        );
     }
 
     render() {
@@ -182,18 +213,21 @@ class TcgCard extends HTMLElement {
 
     renderImage(data) {
         const img = this.shadowRoot.querySelector(".card-image");
+        // The front card's image is the LCP element; the ones behind it can wait.
+        const isActive = this.dataset.pos === "0";
         img.src = data.image;
         img.alt = data.header.name;
         img.dataset.card = data.id;
-        img.loading = "lazy";
-        img.decoding = "async";
+        img.loading = isActive ? "eager" : "lazy";
+        img.fetchPriority = isActive ? "high" : "auto";
+        img.decoding = isActive ? "auto" : "async";
     }
 
     renderBody(data) {
         const row1 = this.shadowRoot.querySelector(".row-1");
         row1.querySelector("h3").textContent = data.body.row1.title;
         row1.querySelector("p").textContent = data.body.row1.desc;
-        row1.querySelector(".damage i").className = data.body.row1.icon;
+        row1.querySelector(".damage").replaceChildren(icon(data.body.row1.icon));
 
         const row2 = this.shadowRoot.querySelector(".row-2");
         row2.querySelector("h3").textContent = data.body.row2.title;
@@ -208,12 +242,17 @@ class TcgCard extends HTMLElement {
 
         data.body.row2.actions.forEach((actionKey) => {
             const social = CONFIG.SOCIAL[actionKey];
+            if (!social) {
+                console.warn(`Unknown social action "${actionKey}"`);
+                return;
+            }
+
             const a = document.createElement("a");
             a.href = social.url;
             a.className = `action-btn ${social.class}`;
             a.target = "_blank";
             a.rel = "noopener noreferrer";
-            a.innerHTML = `<i class="${social.icon}"></i> ${social.label}`;
+            a.append(icon(social.icon), ` ${social.label}`);
             // Stop propagation on links to prevent card interaction issues
             a.addEventListener("click", (e) => e.stopPropagation());
             actionsContainer.appendChild(a);

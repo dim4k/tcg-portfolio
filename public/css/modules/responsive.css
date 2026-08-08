@@ -40,7 +40,7 @@
         animation-fill-mode: forwards;
     }
 
-    .swipe-hint-mobile i {
+    .swipe-hint-mobile svg {
         font-size: 50px;
         margin-bottom: 10px;
     }

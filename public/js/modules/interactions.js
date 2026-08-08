@@ -6,12 +6,22 @@ export class InteractionManager {
         this.deckManager = deckManager;
         this.lastHoveredCard = null;
         this.rafId = null;
-        this.pendingPointer = null;
+        this.hasPending = false;
+        // Reused in place so pointer/gyro events allocate nothing.
+        this.pending = { card: null, mode: "", a: 0, b: 0 };
+        this.rectCache = { card: null, grid: false, rect: null };
+        this.boundFrame = () => this.runFrame();
+        this.orientationHandler = null;
+        this.hintTimer = null;
+        this.hintInterval = null;
+        this.hintRepeats = 0;
+        this.wheelAccum = 0;
+        this.wheelResetTimer = null;
         this.state = {
             isMobile: Utils.isMobile(),
             gyroBase: { beta: 0, gamma: 0 },
             gyroInitialized: false,
-            swipeHintShown: false,
+            swipeHintDismissed: false,
             touchStartY: 0,
         };
 
@@ -21,10 +31,7 @@ export class InteractionManager {
         };
 
         this.bindEvents();
-        if (this.state.isMobile) {
-            this.initializeGyroscope();
-            this.initializeSwipeHint();
-        }
+        this.syncMobileFeatures();
     }
 
     bindEvents() {
@@ -54,20 +61,106 @@ export class InteractionManager {
         // Keyboard navigation: cycle the deck with the arrow keys.
         window.addEventListener("keydown", (e) => this.handleKeydown(e));
 
+        // Anything that can move a card's box invalidates the cached rect.
+        window.addEventListener("resize", () => this.invalidateRect(), {
+            passive: true,
+        });
+        this.elements.deckContainer.addEventListener(
+            "scroll",
+            () => this.invalidateRect(),
+            { passive: true }
+        );
+
+        // Rotating a phone or resizing across the breakpoint must (de)activate the mobile bits.
+        Utils.mobileMql.addEventListener("change", () =>
+            this.syncMobileFeatures()
+        );
+
         // Theme switcher handled by component
     }
 
+    syncMobileFeatures() {
+        this.state.isMobile = Utils.isMobile();
+        this.invalidateRect();
+
+        if (this.state.isMobile) {
+            this.initializeGyroscope();
+            this.initializeSwipeHint();
+        } else {
+            this.teardownGyroscope();
+            this.stopSwipeHint();
+        }
+    }
+
     getActiveCard() {
-        return document.querySelector('tcg-card[data-pos="0"]');
+        return this.deckManager.cards[0] || null;
+    }
+
+    invalidateRect() {
+        this.rectCache.card = null;
+    }
+
+    /**
+     * Measuring inside the frame callback would force a synchronous layout, because the previous
+     * frame just wrote a transform on this very element. In deck view the active card is inset
+     * into the container, so the container's box is the card's untransformed box.
+     */
+    getCardRect(card) {
+        const cache = this.rectCache;
+        const grid = this.deckManager.isGridView;
+
+        if (cache.card !== card || cache.grid !== grid) {
+            cache.card = card;
+            cache.grid = grid;
+            cache.rect = (
+                grid ? card : this.elements.deckContainer
+            ).getBoundingClientRect();
+        }
+        return cache.rect;
+    }
+
+    scheduleFrame(card, mode, a, b) {
+        const pending = this.pending;
+        pending.card = card;
+        pending.mode = mode;
+        pending.a = a;
+        pending.b = b;
+        this.hasPending = true;
+
+        if (this.rafId === null) {
+            this.rafId = requestAnimationFrame(this.boundFrame);
+        }
+    }
+
+    runFrame() {
+        this.rafId = null;
+        if (!this.hasPending) return;
+        this.hasPending = false;
+
+        const { card, mode, a, b } = this.pending;
+        if (!card) return;
+
+        if (mode === "pointer") this.applyCardEffect(card, a, b);
+        else this.applyOrientation(card, a, b);
     }
 
     handleKeydown(e) {
         if (this.deckManager.isGridView) return;
+        if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+
         const navKeys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"];
-        if (navKeys.includes(e.key)) {
-            e.preventDefault();
-            this.deckManager.rotateCards();
+        if (!navKeys.includes(e.key)) return;
+
+        // Never swallow arrows aimed at a focused control inside a card.
+        const target = e.composedPath ? e.composedPath()[0] : e.target;
+        if (
+            target?.closest?.("a, button, input, textarea, select, [contenteditable]")
+        ) {
+            return;
         }
+
+        e.preventDefault();
+        this.deckManager.rotateCards();
     }
 
     handleMouseMove(e) {
@@ -89,14 +182,7 @@ export class InteractionManager {
         if (!targetCard) return;
 
         // Throttle DOM writes to one per animation frame.
-        this.pendingPointer = { card: targetCard, x: e.clientX, y: e.clientY };
-        if (this.rafId === null) {
-            this.rafId = requestAnimationFrame(() => {
-                this.rafId = null;
-                const p = this.pendingPointer;
-                if (p) this.applyCardEffect(p.card, p.x, p.y);
-            });
-        }
+        this.scheduleFrame(targetCard, "pointer", e.clientX, e.clientY);
     }
 
     handleMouseLeave() {
@@ -104,7 +190,9 @@ export class InteractionManager {
             cancelAnimationFrame(this.rafId);
             this.rafId = null;
         }
-        this.pendingPointer = null;
+        this.hasPending = false;
+        this.pending.card = null;
+        this.invalidateRect();
         if (this.lastHoveredCard) {
             this.resetCardEffect(this.lastHoveredCard);
             this.lastHoveredCard = null;
@@ -114,8 +202,6 @@ export class InteractionManager {
     setCardVars(card, { mx, my, glare }) {
         card.style.setProperty("--mx", `${mx}%`);
         card.style.setProperty("--my", `${my}%`);
-        card.style.setProperty("--holo-x", `${mx}%`);
-        card.style.setProperty("--holo-y", `${my}%`);
         card.style.setProperty("--glare-opacity", `${glare}`);
     }
 
@@ -130,7 +216,7 @@ export class InteractionManager {
     }
 
     applyCardEffect(card, clientX, clientY) {
-        const rect = card.getBoundingClientRect();
+        const rect = this.getCardRect(card);
         const x = clientX - rect.left;
         const y = clientY - rect.top;
         const centerX = rect.width / 2;
@@ -160,8 +246,22 @@ export class InteractionManager {
     }
 
     handleWheel(e) {
-        if (this.deckManager.isGridView) return;
-        if (e.deltaY > 0) {
+        if (this.deckManager.isGridView || this.deckManager.isAnimating) {
+            this.wheelAccum = 0;
+            return;
+        }
+
+        // A single trackpad flick emits dozens of events over ~500ms; require a whole
+        // gesture per rotation instead of cycling several cards at once.
+        this.wheelAccum = Math.max(0, this.wheelAccum + e.deltaY);
+
+        clearTimeout(this.wheelResetTimer);
+        this.wheelResetTimer = setTimeout(() => {
+            this.wheelAccum = 0;
+        }, 200);
+
+        if (this.wheelAccum >= CONFIG.WHEEL_THRESHOLD) {
+            this.wheelAccum = 0;
             this.deckManager.rotateCards();
         }
     }
@@ -176,9 +276,7 @@ export class InteractionManager {
         const swipeDistance = touchEndY - this.state.touchStartY;
 
         if (swipeDistance > CONFIG.SWIPE_THRESHOLD) {
-            if (!this.state.swipeHintShown) {
-                this.hideSwipeHint();
-            }
+            this.hideSwipeHint();
             this.deckManager.rotateCards();
         }
     }
@@ -199,9 +297,16 @@ export class InteractionManager {
             return;
         }
 
-        const beta = event.beta || 0;
-        const gamma = event.gamma || 0;
+        // iOS fires this at up to 60Hz; batch the DOM writes like the pointer path.
+        this.scheduleFrame(
+            activeCard,
+            "tilt",
+            event.beta || 0,
+            event.gamma || 0
+        );
+    }
 
+    applyOrientation(card, beta, gamma) {
         const relativeBeta = beta - this.state.gyroBase.beta;
         const relativeGamma = gamma - this.state.gyroBase.gamma;
 
@@ -219,7 +324,7 @@ export class InteractionManager {
         const pctX = Utils.clamp(50 + relativeGamma * 2, 0, 100);
         const pctY = Utils.clamp(50 + relativeBeta * 2, 0, 100);
 
-        this.applyTilt(activeCard, {
+        this.applyTilt(card, {
             rotateX: -rotateX,
             rotateY,
             glare: 0.8,
@@ -229,9 +334,9 @@ export class InteractionManager {
     }
 
     initializeGyroscope() {
-        if (!this.state.isMobile) return;
+        if (!this.state.isMobile || this.orientationHandler) return;
 
-        const handleOrientation = (e) => this.handleOrientation(e);
+        this.orientationHandler = (e) => this.handleOrientation(e);
 
         if (
             typeof DeviceOrientationEvent !== "undefined" &&
@@ -242,10 +347,10 @@ export class InteractionManager {
                 () => {
                     DeviceOrientationEvent.requestPermission()
                         .then((response) => {
-                            if (response === "granted") {
+                            if (response === "granted" && this.orientationHandler) {
                                 window.addEventListener(
                                     "deviceorientation",
-                                    handleOrientation
+                                    this.orientationHandler
                                 );
                             }
                         })
@@ -254,12 +359,26 @@ export class InteractionManager {
                 { once: true }
             );
         } else {
-            window.addEventListener("deviceorientation", handleOrientation);
+            window.addEventListener(
+                "deviceorientation",
+                this.orientationHandler
+            );
         }
     }
 
+    teardownGyroscope() {
+        if (!this.orientationHandler) return;
+
+        window.removeEventListener(
+            "deviceorientation",
+            this.orientationHandler
+        );
+        this.orientationHandler = null;
+        this.state.gyroInitialized = false;
+    }
+
     showSwipeHint() {
-        if (!this.elements.swipeHint || this.state.swipeHintShown) return;
+        if (!this.elements.swipeHint || this.state.swipeHintDismissed) return;
 
         this.elements.swipeHint.classList.remove("show");
         void this.elements.swipeHint.offsetWidth;
@@ -267,7 +386,8 @@ export class InteractionManager {
     }
 
     hideSwipeHint() {
-        this.state.swipeHintShown = true;
+        this.state.swipeHintDismissed = true;
+        this.stopSwipeHint();
         if (this.elements.swipeHint) {
             this.elements.swipeHint.classList.remove("show");
             this.elements.swipeHint.style.display = "none";
@@ -276,16 +396,38 @@ export class InteractionManager {
 
     initializeSwipeHint() {
         if (!this.state.isMobile || !this.elements.swipeHint) return;
+        if (
+            this.state.swipeHintDismissed ||
+            this.hintTimer ||
+            this.hintInterval
+        ) {
+            return;
+        }
 
-        setTimeout(() => {
+        this.hintRepeats = 0;
+        this.hintTimer = setTimeout(() => {
+            this.hintTimer = null;
             this.showSwipeHint();
-            const hintInterval = setInterval(() => {
-                if (!this.state.swipeHintShown) {
-                    this.showSwipeHint();
+
+            // Bounded: each repeat forces a reflow, and the user may simply never swipe.
+            this.hintInterval = setInterval(() => {
+                this.hintRepeats++;
+                if (
+                    this.state.swipeHintDismissed ||
+                    this.hintRepeats >= CONFIG.HINT_MAX_REPEATS
+                ) {
+                    this.stopSwipeHint();
                 } else {
-                    clearInterval(hintInterval);
+                    this.showSwipeHint();
                 }
             }, CONFIG.HINT_REPEAT_INTERVAL);
         }, CONFIG.HINT_INITIAL_DELAY);
+    }
+
+    stopSwipeHint() {
+        clearTimeout(this.hintTimer);
+        clearInterval(this.hintInterval);
+        this.hintTimer = null;
+        this.hintInterval = null;
     }
 }

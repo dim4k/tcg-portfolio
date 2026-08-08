@@ -1,5 +1,9 @@
 import { CONFIG } from "../config.js";
 
+// Kept outside the object so the helpers below never depend on `this`.
+const mobileMql = window.matchMedia(`(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`);
+const reducedMotionMql = window.matchMedia("(prefers-reduced-motion: reduce)");
+
 export const Utils = {
     /**
      * Calculate years since a given date
@@ -7,15 +11,15 @@ export const Utils = {
      * @returns {number} Number of full years
      */
     calculateYearsSince: function (dateString) {
-        const startDate = new Date(dateString);
+        // Parsed by hand: new Date("YYYY-MM-DD") is UTC midnight, but getMonth()/getDate()
+        // read local time, which shifts the anniversary by a day west of UTC.
+        const [year, month, day] = dateString.split("-").map(Number);
         const today = new Date();
-        let years = today.getFullYear() - startDate.getFullYear();
-        const monthDiff = today.getMonth() - startDate.getMonth();
 
-        if (
-            monthDiff < 0 ||
-            (monthDiff === 0 && today.getDate() < startDate.getDate())
-        ) {
+        let years = today.getFullYear() - year;
+        const monthDiff = today.getMonth() - (month - 1);
+
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < day)) {
             years--;
         }
         return years;
@@ -29,24 +33,19 @@ export const Utils = {
     },
 
     /**
-     * Shared media query for the mobile breakpoint.
+     * Shared media queries. Exposed as MediaQueryList so callers can subscribe to changes.
      */
-    mobileMql: window.matchMedia(
-        `(max-width: ${CONFIG.MOBILE_BREAKPOINT}px)`
-    ),
+    mobileMql,
+    reducedMotionMql,
 
     /**
      * Whether the viewport currently matches the mobile breakpoint.
      */
-    isMobile: function () {
-        return this.mobileMql.matches;
-    },
+    isMobile: () => mobileMql.matches,
 
     /**
      * Whether the user prefers reduced motion.
      */
-    prefersReducedMotion: function () {
-        return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    },
+    prefersReducedMotion: () => reducedMotionMql.matches,
 };
 

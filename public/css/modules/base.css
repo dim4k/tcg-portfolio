@@ -1,8 +1,6 @@
 /* ==========================================
-   FONTS & RESET
+   RESET
    ========================================== */
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Lato:wght@400;700&display=swap");
-
 *,
 *::before,
 *::after {
@@ -51,6 +49,14 @@ body {
     height: 100%;
     z-index: -1;
     opacity: 0.5;
+    /* Replaces two per-frame full-screen ctx.filter blur passes: the compositor does it once. */
+    filter: blur(var(--bg-glow-blur, 1.5px));
+    /* Pushes the blur's soft edge outside the viewport. */
+    transform: scale(1.04);
+}
+
+#canvas-background.is-paused {
+    display: none;
 }
 
 body::before {
@@ -96,7 +102,7 @@ body::before {
     align-items: center;
     gap: 10px;
     backdrop-filter: blur(10px);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
 .view-toggle-btn:hover {
@@ -109,7 +115,18 @@ body::before {
     outline-offset: 3px;
 }
 
-.view-toggle-btn i {
+/* Inline icons. Font Awesome glyphs were 512 units tall, so height:1em reproduces
+   exactly the size and aspect ratio the webfont used to render. */
+.view-toggle-btn svg,
+.scroll-hint svg,
+.swipe-hint-mobile svg {
+    height: 1em;
+    width: auto;
+    fill: currentColor;
+    vertical-align: -0.125em;
+}
+
+.view-toggle-btn svg {
     font-size: 18px;
 }
 

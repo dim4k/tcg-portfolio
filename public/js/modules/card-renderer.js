@@ -8,16 +8,19 @@ export class CardRenderer {
     render() {
         if (!this.container) return;
 
-        const swipeHint = this.container.querySelector(".swipe-hint-mobile");
-        this.container.innerHTML = "";
-        if (swipeHint) this.container.appendChild(swipeHint);
+        this.container
+            .querySelectorAll("tcg-card")
+            .forEach((card) => card.remove());
 
+        const fragment = document.createDocumentFragment();
         CONFIG.CARDS.forEach((cardData, index) => {
             const cardElement = document.createElement("tcg-card");
-            cardElement.data = cardData;
+            // Position first: rendering reads it to decide the image loading priority.
             cardElement.dataset.pos = index;
-            this.container.appendChild(cardElement);
+            cardElement.data = cardData;
+            fragment.appendChild(cardElement);
         });
+        this.container.appendChild(fragment);
     }
 }
 

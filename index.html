@@ -45,13 +45,26 @@
             href="public/img/favicon/apple-touch-icon.png"
         />
 
-        <!-- Font Awesome (single document-level load for light-DOM icons) -->
-        <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
             rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+            href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Lato:wght@400;700&display=swap"
         />
-        <link rel="stylesheet" href="public/css/style.css" />
+
+        <!-- Separate links, not @import: an import chain downloads strictly one file after another. -->
+        <link rel="stylesheet" href="public/css/modules/base.css" />
+        <link rel="stylesheet" href="public/css/modules/effects.css" />
+        <link rel="stylesheet" href="public/css/modules/responsive.css" />
+
+        <!-- LCP image. The cards are built by JS, so the preload scanner would find it far too late.
+             Must stay in sync with CONFIG.CARDS[0].image. -->
+        <link
+            rel="preload"
+            as="image"
+            href="public/img/ak.jpg"
+            fetchpriority="high"
+        />
 
         <!-- Critical inline styles so the loader shows instantly,
              before stylesheets/fonts finish downloading. -->
@@ -259,7 +272,11 @@
             window.addEventListener("load", function () {
                 setTimeout(function () {
                     var l = document.getElementById("app-loader");
-                    if (l) l.classList.add("is-hidden");
+                    if (!l) return;
+                    l.classList.add("is-hidden");
+                    setTimeout(function () {
+                        l.remove();
+                    }, 600);
                 }, 8000);
             });
         </script>
@@ -269,15 +286,15 @@
         <button
             id="view-toggle-btn"
             class="view-toggle-btn"
-            aria-label="Toggle View"
+            aria-pressed="false"
         >
-            <i class="fas fa-th-large"></i>
+            <i data-icon="th-large"></i>
             <span>Grid View</span>
         </button>
 
         <div class="deck-container" id="deck">
             <div class="swipe-hint-mobile">
-                <i class="fas fa-hand-point-down"></i>
+                <i data-icon="hand-point-down"></i>
                 <p>Swipe Down</p>
             </div>
             <!-- Cards will be dynamically rendered here by JS -->
@@ -285,7 +302,7 @@
 
         <div class="scroll-hint scroll-hint-desktop">
             <p>Scroll to Cycle Deck</p>
-            <i class="fas fa-chevron-down"></i>
+            <i data-icon="chevron-down"></i>
         </div>
 
         <!-- Single ES-module entry point (native browser modules) -->

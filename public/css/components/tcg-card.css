@@ -1,8 +1,16 @@
+/* Inline icons. Font Awesome glyphs were 512 units tall, so height:1em reproduces
+   exactly the size and aspect ratio the webfont used to render. */
+svg {
+    height: 1em;
+    width: auto;
+    fill: currentColor;
+    vertical-align: -0.125em;
+}
+
 :host {
     display: block;
     position: absolute;
-    inset: 0;
-    border-radius: var(--card-radius, 15px);
+    inset: 0;    border-radius: var(--card-radius, 15px);
     background: #000;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.5), 0 15px 35px rgba(0, 0, 0, 0.5);
     transform-style: preserve-3d;
@@ -73,6 +81,12 @@
     transition: transform 0.4s ease-in;
     transform: translate3d(0, 120%, 0) rotate(-5deg) !important;
     z-index: 20 !important;
+}
+
+/* Only while hovered: the tilt transform is rewritten on every frame there. */
+:host([data-pos="0"]:hover),
+:host(.grid-mode:hover) {
+    will-change: transform;
 }
 
 /* Inner Layout */
@@ -230,7 +244,12 @@
     text-transform: uppercase;
     font-size: 12px;
     letter-spacing: 0.5px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        text-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: 2px solid rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.1);
     color: white;
@@ -247,7 +266,7 @@
     content: "";
     position: absolute;
     top: 0;
-    left: -100%;
+    left: 0;
     width: 100%;
     height: 100%;
     background: linear-gradient(
@@ -256,11 +275,12 @@
         rgba(255, 255, 255, 0.3),
         transparent
     );
-    transition: left 0.5s;
+    transform: translateX(-100%);
+    transition: transform 0.5s;
 }
 
 .action-btn:hover::before {
-    left: 100%;
+    transform: translateX(100%);
 }
 
 .action-btn:hover {
@@ -325,7 +345,8 @@
     align-items: center;
     justify-content: center;
     font-size: 10px;
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease,
+        color 0.3s ease, transform 0.3s ease;
     padding: 0;
 }
 
@@ -411,7 +432,7 @@
         transparent 50%
     );
     background-size: 300% 300%;
-    background-position: var(--holo-x, 0%) var(--holo-y, 0%);
+    background-position: var(--mx, 0%) var(--my, 0%);
     mix-blend-mode: color-dodge;
     opacity: 0.6;
     z-index: 4;
@@ -439,6 +460,20 @@
     position: absolute;
     inset: 0;
     border-radius: var(--card-radius, 15px);
+    overflow: hidden;
+    mix-blend-mode: screen;
+    z-index: 8;
+    opacity: 0.1;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+/* Oversized so the translation never exposes an edge; the +80px background offset keeps the
+   tiling phase identical to animating background-position on the layer itself. */
+.glitter-layer::before {
+    content: "";
+    position: absolute;
+    inset: -80px;
     background-image: radial-gradient(
             circle,
             var(--accent) 1px,
@@ -446,13 +481,8 @@
         ),
         radial-gradient(circle, var(--accent-light) 1px, transparent 1px);
     background-size: 50px 50px, 70px 70px;
-    background-position: 0 0, 25px 25px;
-    mix-blend-mode: screen;
-    z-index: 8;
-    opacity: 0.1;
+    background-position: 80px 80px, 105px 105px;
     animation: glitterMove 20s linear infinite;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
 }
 
 :host([data-pos="0"]:hover) .glitter-layer,
@@ -491,10 +521,10 @@
 
 @keyframes glitterMove {
     0% {
-        background-position: 0 0, 25px 25px;
+        transform: translate3d(0, 0, 0);
     }
     100% {
-        background-position: 50px 50px, 75px 75px;
+        transform: translate3d(50px, 50px, 0);
     }
 }
 
@@ -574,7 +604,7 @@
         gap: 6px;
     }
 
-    .action-btn i {
+    .action-btn svg {
         font-size: 13px;
     }
 
@@ -612,6 +642,7 @@
     .glare,
     .holo-overlay,
     .glitter-layer,
+    .glitter-layer::before,
     .theme-btn,
     .action-btn {
         transition: none !important;
