@@ -12,8 +12,10 @@ This project reimagines the traditional web portfolio as a deck of collectible c
 **Core Concept:**
 
 -   **Card 1 (Fire)**: Professional Profile
--   **Card 2 (Electric)**: Tech Stack & Skills
--   **Card 3 (Psychic)**: Personal Interests
+-   **Card 2 (Psychic)**: Tech Stack & Skills
+-   **Card 3 (Ice)**: Career Path
+-   **Card 4 (Dark)**: Side Projects
+-   **Card 5 (Grass)**: Personal Interests
 -   **Card N...**: Add as many as you need!
 
 ## ✨ Key Features
@@ -59,6 +61,10 @@ export const CONFIG = {
     ],
 };
 ```
+
+A card's second row renders links from either `actions` (keys of `CONFIG.SOCIAL`, laid out
+side by side) or `projects` (keys of `CONFIG.PROJECTS`, stacked as a list where each row
+shows a name and a one-line description).
 
 ### 2. Visual Themes
 

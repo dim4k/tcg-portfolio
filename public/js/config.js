@@ -8,6 +8,8 @@ export const CONFIG = {
     // Must match the .slide-out transition duration in tcg-card.css (0.4s).
     ANIMATION_DELAY: 400,
     ANIMATION_BUFFER: 100,
+    // Deepest rank still drawn in the stack; anything further back is hidden.
+    MAX_STACK_DEPTH: 2,
     // One trackpad flick emits dozens of events; one mouse notch is ~100.
     WHEEL_THRESHOLD: 50,
     HINT_INITIAL_DELAY: 5000,
@@ -67,6 +69,58 @@ export const CONFIG = {
             class: "instagram",
         },
     },
+    // Side projects rendered as a link list; url points at the live demo when there is one.
+    PROJECTS: {
+        map2poster: {
+            url: "https://dim4k.github.io/map2poster/",
+            icon: "map-location-dot",
+            label: "Map2Poster",
+            desc: "Print-ready map posters",
+            class: "map2poster",
+        },
+        kimpay: {
+            url: "https://kimpay.io/",
+            icon: "wallet",
+            label: "Kimpay",
+            desc: "Split expenses with friends",
+            class: "kimpay",
+        },
+        mixera: {
+            url: "https://dim4k.github.io/mixera/",
+            icon: "music",
+            label: "MixEra",
+            desc: "Guess the year of a song",
+            class: "mixera",
+        },
+        haNaolib: {
+            url: "https://github.com/dim4k/ha-naolib",
+            icon: "bus",
+            label: "Naolib",
+            desc: "Live transit in Home Assistant",
+            class: "ha-naolib",
+        },
+        ezloc: {
+            url: "https://github.com/dim4k/ezloc",
+            icon: "house",
+            label: "EzLoc",
+            desc: "Rental site with a built-in CMS",
+            class: "ezloc",
+        },
+        tcgPortfolio: {
+            url: "https://github.com/dim4k/tcg-portfolio",
+            icon: "layer-group",
+            label: "TCG Portfolio",
+            desc: "The site you are on",
+            class: "tcg-portfolio",
+        },
+        github: {
+            url: "https://github.com/dim4k",
+            icon: "github",
+            label: "More on GitHub",
+            desc: "Everything else I have pushed",
+            class: "github",
+        },
+    },
     CARDS: [
         {
             id: 1,
@@ -122,6 +176,64 @@ export const CONFIG = {
         },
         {
             id: 3,
+            theme: "ice",
+            header: {
+                stage: "Career",
+                name: "Experience",
+                hpLabel: "ROLES",
+                hpValue: "4",
+            },
+            image: "public/img/experience.jpg",
+            body: {
+                row1: {
+                    title: "How I Got Here",
+                    desc: "Fifteen years writing code across the stack, then leading the teams doing it. Still in the pull requests.",
+                    icon: "layer-group",
+                },
+                row2: {
+                    title: "Full Timeline",
+                    desc: "Roles, companies and projects, year by year.",
+                    actions: ["linkedin"],
+                },
+            },
+            footer: {
+                text: "Base: Nantes",
+            },
+        },
+        {
+            id: 4,
+            theme: "dark",
+            header: {
+                stage: "Side Projects",
+                name: "Projects",
+                hpLabel: "REPOS",
+                hpValue: "6",
+            },
+            body: {
+                row1: {
+                    title: "Built After Hours",
+                    desc: "Small tools I actually use, shipped on the side.",
+                    icon: "star",
+                },
+                row2: {
+                    title: "Explore",
+                    projects: [
+                        "map2poster",
+                        "kimpay",
+                        "mixera",
+                        "haNaolib",
+                        "ezloc",
+                        "tcgPortfolio",
+                        "github",
+                    ],
+                },
+            },
+            footer: {
+                text: "License: MIT",
+            },
+        },
+        {
+            id: 5,
             theme: "grass",
             header: {
                 stage: "Personal",

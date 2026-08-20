@@ -182,6 +182,7 @@ class TcgCard extends HTMLElement {
         // Set theme
         this.setAttribute("theme", data.theme);
         this.setAttribute("data-id", data.id);
+        this.toggleAttribute("no-image", !data.image);
 
         this.renderHeader(data);
         this.renderImage(data);
@@ -213,6 +214,11 @@ class TcgCard extends HTMLElement {
 
     renderImage(data) {
         const img = this.shadowRoot.querySelector(".card-image");
+        if (!data.image) {
+            img.removeAttribute("src");
+            return;
+        }
+
         // The front card's image is the LCP element; the ones behind it can wait.
         const isActive = this.dataset.pos === "0";
         img.src = data.image;
@@ -231,31 +237,59 @@ class TcgCard extends HTMLElement {
 
         const row2 = this.shadowRoot.querySelector(".row-2");
         row2.querySelector("h3").textContent = data.body.row2.title;
-        row2.querySelector("p").textContent = data.body.row2.desc;
+        row2.querySelector("p").textContent = data.body.row2.desc || "";
     }
 
     renderActions(data) {
         const actionsContainer =
             this.shadowRoot.querySelector(".action-btn-group");
         actionsContainer.innerHTML = "";
-        if (!data.body.row2.actions) return;
 
-        data.body.row2.actions.forEach((actionKey) => {
-            const social = CONFIG.SOCIAL[actionKey];
-            if (!social) {
-                console.warn(`Unknown social action "${actionKey}"`);
+        const { actions, projects } = data.body.row2;
+        actionsContainer.classList.toggle("projects", Boolean(projects));
+        this.appendLinks(actionsContainer, actions, CONFIG.SOCIAL, false);
+        this.appendLinks(actionsContainer, projects, CONFIG.PROJECTS, true);
+    }
+
+    appendLinks(container, keys, source, asProject) {
+        if (!keys) return;
+
+        keys.forEach((key) => {
+            const entry = source[key];
+            if (!entry) {
+                console.warn(`Unknown action "${key}"`);
                 return;
             }
 
             const a = document.createElement("a");
-            a.href = social.url;
-            a.className = `action-btn ${social.class}`;
+            a.href = entry.url;
+            a.className = `action-btn ${entry.class}${
+                asProject ? " project" : ""
+            }`;
             a.target = "_blank";
             a.rel = "noopener noreferrer";
-            a.append(icon(social.icon), ` ${social.label}`);
+
+            if (asProject) {
+                const text = document.createElement("span");
+                text.className = "project-text";
+
+                const name = document.createElement("span");
+                name.className = "project-name";
+                name.textContent = entry.label;
+
+                const desc = document.createElement("span");
+                desc.className = "project-desc";
+                desc.textContent = entry.desc;
+
+                text.append(name, desc);
+                a.append(icon(entry.icon), text);
+            } else {
+                a.append(icon(entry.icon), ` ${entry.label}`);
+            }
+
             // Stop propagation on links to prevent card interaction issues
             a.addEventListener("click", (e) => e.stopPropagation());
-            actionsContainer.appendChild(a);
+            container.appendChild(a);
         });
     }
 

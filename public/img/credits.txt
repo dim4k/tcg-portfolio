@@ -1,0 +1,7 @@
+Sources for the card images in this folder.
+
+- experience.jpg
+  "people sitting down near table with assorted laptop computers"
+  Marvin Meyer (@marvelous) — https://unsplash.com/photos/SYTO3xs06fU
+  Unsplash License, free to use, attribution not required:
+  https://unsplash.com/license

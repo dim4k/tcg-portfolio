@@ -68,6 +68,11 @@ export class DeckManager {
 
         this.cards.forEach((card, index) => {
             card.dataset.pos = index;
+            card.style.setProperty(
+                "--stack-depth",
+                Math.min(index, CONFIG.MAX_STACK_DEPTH)
+            );
+            card.toggleAttribute("data-behind", index > CONFIG.MAX_STACK_DEPTH);
             card.style.transform = "";
             card.classList.remove("slide-out", "from-back");
         });

@@ -29,12 +29,23 @@ svg {
     --z-glare: 7;
     --z-glitter: 8;
 
-    /* Default state */
-    z-index: 0;
-    transform: translate3d(0, 45px, -150px) scale(0.85);
-    filter: brightness(0);
-    opacity: 0;
-    pointer-events: none;
+    /* Rank in the stack, written by DeckManager and clamped to CONFIG.MAX_STACK_DEPTH. */
+    --stack-depth: 0;
+    --stack-step-y: 15px;
+    --stack-step-z: -50px;
+    --stack-step-scale: 0.05;
+    --stack-step-dim: 0.25;
+
+    z-index: calc(50 - var(--stack-depth));
+    transform: translate3d(
+            0,
+            calc(var(--stack-depth) * var(--stack-step-y)),
+            calc(var(--stack-depth) * var(--stack-step-z))
+        )
+        scale(calc(1 - var(--stack-depth) * var(--stack-step-scale)));
+    filter: brightness(calc(1 - var(--stack-depth) * var(--stack-step-dim)));
+    opacity: 1;
+    pointer-events: auto;
 }
 
 /* Every full-bleed layer stacked over the card. */
@@ -70,36 +81,20 @@ svg {
     filter: brightness(0.5);
 }
 
-/* Stacking positions - controlled by host attributes */
-:host([data-pos="0"]) {
-    z-index: 10;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: brightness(1);
-    opacity: 1;
-    pointer-events: auto;
-}
-
-:host([data-pos="1"]) {
-    z-index: 5;
-    transform: translate3d(0, 15px, -50px) scale(0.95);
-    filter: brightness(0.7);
-    opacity: 1;
-    pointer-events: auto;
-}
-
-:host([data-pos="2"]) {
-    z-index: 1;
-    transform: translate3d(0, 30px, -100px) scale(0.9);
-    filter: brightness(0.5);
-    opacity: 1;
-    pointer-events: auto;
+/* Ranks past the visible stack: parked at the deepest offset, out of reach. */
+:host([data-behind]) {
+    z-index: 0;
+    transform: translate3d(0, 45px, -150px) scale(0.85);
+    filter: brightness(0);
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* Animations */
 :host(.slide-out) {
     transition: transform 0.4s ease-in;
     transform: translate3d(0, 120%, 0) rotate(-5deg) !important;
-    z-index: 20 !important;
+    z-index: 999 !important;
 }
 
 /* Rotating backwards the card leaves from the back of the stack, so it must stay
@@ -188,10 +183,25 @@ svg {
     background: #111;
 }
 
+:host([no-image]) .card-image-container {
+    display: none;
+}
+
 .card-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* Cards without an image let the body take the freed space. */
+:host([no-image]) .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+:host([no-image]) .row-2 {
+    flex: 1;
 }
 
 /* Body */
@@ -339,6 +349,66 @@ svg {
 }
 .action-btn.instagram {
     --brand: #e1306c;
+}
+
+/* Project links stack so each row can carry a name and a one-liner. */
+.action-btn-group.projects {
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 0;
+}
+
+.action-btn.project {
+    flex: 1;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 4px 10px;
+    font-size: 15px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.action-btn.project:hover {
+    transform: translateY(-2px);
+}
+
+.project-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+}
+
+.project-name {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.project-desc {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.75;
+}
+
+.action-btn.map2poster {
+    --brand: #2d6a4f;
+}
+.action-btn.kimpay {
+    --brand: #4f46e5;
+}
+.action-btn.mixera {
+    --brand: #42b883;
+}
+.action-btn.ha-naolib {
+    --brand: #41bdf5;
+}
+.action-btn.ezloc {
+    --brand: #0d9488;
+}
+.action-btn.tcg-portfolio {
+    --brand: #7c3aed;
 }
 
 /* Footer */
