@@ -5,19 +5,44 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Antoine Kim - Engineering Manager</title>
 
+        <!-- Before any stylesheet, so the first paint already shows the right loader.
+             The boosters show until one is opened this session (key mirrored in
+             CONFIG.BOOSTER_KEY), and never for reduced motion or a link to a specific card. -->
+        <script>
+            (function () {
+                var opened = false;
+                try {
+                    opened = Boolean(sessionStorage.getItem("tcg-booster-opened"));
+                } catch (e) {}
+                var calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                var deepLink = window.location.hash.length > 1;
+                document.documentElement.dataset.intro =
+                    opened || calm || deepLink ? "skeleton" : "booster";
+            })();
+        </script>
+
         <meta
             name="description"
             content="Antoine Kim — Engineering Manager. An interactive trading-card style portfolio showcasing technical leadership, full-stack and DevOps expertise."
         />
+        <link rel="canonical" href="https://antoine.kim/" />
 
-        <!-- Open Graph -->
+        <!-- Open Graph. Scrapers (LinkedIn, Slack, X) only accept absolute URLs.
+             The image is generated from tools/og-image.html, see the README. -->
         <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://antoine.kim/" />
         <meta property="og:title" content="Antoine Kim - Engineering Manager" />
         <meta
             property="og:description"
             content="An interactive trading-card style developer portfolio."
         />
-        <meta property="og:image" content="public/img/ak.jpg" />
+        <meta property="og:image" content="https://antoine.kim/public/img/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta
+            property="og:image:alt"
+            content="Antoine Kim's profile as a holographic trading card"
+        />
 
         <!-- Twitter -->
         <meta name="twitter:card" content="summary_large_image" />
@@ -26,7 +51,7 @@
             name="twitter:description"
             content="An interactive trading-card style developer portfolio."
         />
-        <meta name="twitter:image" content="public/img/ak.jpg" />
+        <meta name="twitter:image" content="https://antoine.kim/public/img/og-image.png" />
 
         <link
             rel="icon"
@@ -49,16 +74,17 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
             rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Lato:wght@400;700&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Lato:wght@400;700&family=Unbounded:wght@700;900&display=swap"
         />
 
         <!-- Separate links, not @import: an import chain downloads strictly one file after another. -->
         <link rel="stylesheet" href="public/css/modules/base.css" />
         <link rel="stylesheet" href="public/css/modules/effects.css" />
+        <link rel="stylesheet" href="public/css/modules/binder.css" />
         <link rel="stylesheet" href="public/css/modules/responsive.css" />
 
         <!-- LCP image. The cards are built by JS, so the preload scanner would find it far too late.
-             Must stay in sync with CONFIG.CARDS[0].image. -->
+             Must stay in sync with the image of the first card of CONFIG.SETS. -->
         <link
             rel="preload"
             as="image"
@@ -76,12 +102,22 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                isolation: isolate;
+                transition: opacity 0.5s ease, visibility 0.5s ease;
+            }
+            /* The backdrop lives apart from the loader so it can clear while the booster
+               pack is still on screen. */
+            #app-loader::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                z-index: -1;
                 background: radial-gradient(
                     circle at 50% 40%,
                     #161616 0%,
                     #0b0b0b 80%
                 );
-                transition: opacity 0.5s ease, visibility 0.5s ease;
+                transition: opacity 0.45s ease;
             }
             #app-loader.is-hidden {
                 opacity: 0;
@@ -233,11 +269,497 @@
                     animation: none;
                 }
             }
+
+            /* ---------- Booster packs (first visit of the session) ---------- */
+            html[data-intro="booster"] .skeleton-card,
+            html:not([data-intro="booster"]) .booster {
+                display: none;
+            }
+            /* A stroke may start anywhere on the overlay, so nothing in it scrolls or zooms. */
+            html[data-intro="booster"] #app-loader {
+                touch-action: none;
+            }
+            /* A sealed pack opened later (booster-intro.js): the deck shows through. */
+            #app-loader.is-reopen::before {
+                background: rgba(6, 6, 10, 0.82);
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+            }
+            /* Hidden between two openings: the idle loops stop. */
+            #app-loader.is-hidden .pack-bob,
+            #app-loader.is-hidden .pack,
+            #app-loader.is-hidden .pack-ghost::before {
+                animation: none;
+            }
+
+            /* Light position over the foil. Registered so the idle sheen can animate it;
+               booster-intro.js writes it from the pointer instead while hovering. */
+            @property --px {
+                syntax: "<percentage>";
+                inherits: true;
+                initial-value: 30%;
+            }
+            @property --py {
+                syntax: "<percentage>";
+                inherits: true;
+                initial-value: 25%;
+            }
+
+            /* Each pack takes its colours from its set (CONFIG.SETS[].booster), written inline
+               by booster-pack.js: --flat (wrapper), --hi (accents), --glow, --name. */
+            [data-pack] {
+                --strip: linear-gradient(
+                    180deg,
+                    color-mix(in oklab, var(--flat) 70%, #fff),
+                    var(--flat) 55%,
+                    color-mix(in oklab, var(--flat) 70%, #000)
+                );
+            }
+
+            .booster {
+                /* The pack being cut. While picking, the packs are laid out on a grid of
+                   --cols by --rows (written by booster-intro.js), each small enough to fit. */
+                --cols: 2;
+                --rows: 1;
+                --pack-w: min(
+                    380px,
+                    calc((100dvh - 170px) * 0.68),
+                    calc(100vw - 48px)
+                );
+                --pick-w: min(
+                    calc(var(--pack-w) * 0.66),
+                    calc((100vw - 32px - (var(--cols) - 1) * 20px) / var(--cols)),
+                    calc((100dvh - 190px - (var(--rows) - 1) * 20px) / var(--rows) * 0.68)
+                );
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 18px;
+                color: #fff;
+                font-family: "Poppins", system-ui, sans-serif;
+            }
+
+            .booster-hint {
+                margin: 0;
+                font-size: 15px;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                text-align: center;
+                color: rgba(255, 255, 255, 0.85);
+                animation: hint-pulse 2.4s ease-in-out infinite;
+            }
+
+            .booster-stage {
+                position: relative;
+                width: var(--pack-w);
+                aspect-ratio: 0.68;
+            }
+            /* While picking, as big as the grid of packs, so it never runs over the hint. */
+            .booster[data-phase="pick"] .booster-stage {
+                width: calc(var(--cols) * (var(--pick-w) + 20px) - 20px);
+                height: calc(var(--rows) * (var(--pick-w) / 0.68 + 20px) - 20px);
+                aspect-ratio: auto;
+            }
+
+            .pack-slot {
+                --w: var(--pick-w);
+                --dx: 0px;
+                --dy: 0px;
+                --r: 0deg;
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: var(--w);
+                aspect-ratio: 0.68;
+                transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+                    rotate(var(--r));
+                transition: width 0.6s cubic-bezier(0.3, 1.2, 0.45, 1),
+                    transform 0.6s cubic-bezier(0.3, 1.2, 0.45, 1), opacity 0.35s ease,
+                    visibility 0.35s;
+            }
+            /* Picking: --col and --row place each pack on the grid (booster-intro.js), the
+               packs fanned out a little from the middle column. */
+            .booster[data-phase="pick"] .pack-slot {
+                --dx: calc((var(--col, 0) - (var(--cols) - 1) / 2) * (var(--pick-w) + 20px));
+                --dy: calc((var(--row, 0) - (var(--rows) - 1) / 2) * (var(--pick-w) / 0.68 + 20px));
+                --r: calc((var(--col, 0) - (var(--cols) - 1) / 2) * 5deg);
+            }
+            .pack-slot[hidden] {
+                display: none;
+            }
+            .pack-slot.is-target {
+                --w: var(--pack-w);
+            }
+            .booster[data-phase="focus"] .pack-slot:not(.is-target) {
+                opacity: 0;
+                visibility: hidden;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+
+            .pack-bob {
+                position: absolute;
+                inset: 0;
+                animation: pack-float 3.6s ease-in-out infinite;
+            }
+            .pack-slot:nth-child(even) .pack-bob {
+                animation-delay: -1.8s;
+            }
+
+            .pack {
+                position: absolute;
+                inset: 0;
+                padding: 0;
+                border: 0;
+                background: none;
+                color: #fff;
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+                container-type: inline-size;
+                user-select: none;
+                -webkit-user-select: none;
+                -webkit-tap-highlight-color: transparent;
+                --rx: 0deg;
+                --ry: 0deg;
+                transform: perspective(1400px) rotateX(var(--rx)) rotateY(var(--ry));
+                transition: transform 0.25s ease-out;
+                /* Follows the serrated outline, unlike box-shadow. */
+                filter: drop-shadow(0 26px 30px rgba(0, 0, 0, 0.55));
+                animation: pack-sheen 7s ease-in-out infinite alternate;
+            }
+            .pack.is-tracking,
+            .pack-half {
+                animation: none;
+            }
+            .pack-half {
+                pointer-events: none;
+            }
+            .booster[data-phase="focus"] .pack {
+                cursor: crosshair;
+            }
+            .pack:focus {
+                outline: none;
+            }
+            .pack:focus-visible {
+                outline: 2px solid #fff;
+                outline-offset: 10px;
+            }
+
+            /* Heat-sealed strip along the top, serrated. */
+            .pack-strip {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 0;
+                height: 9.6%;
+                background: repeating-linear-gradient(
+                        90deg,
+                        transparent 0 3px,
+                        rgba(0, 0, 0, 0.16) 3px 4px
+                    ),
+                    var(--strip);
+                -webkit-mask: conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) 0 0 /
+                        3.4cqw 1.7cqw repeat-x,
+                    linear-gradient(#000 0 0) 0 1.7cqw / 100% 100% no-repeat;
+                mask: conic-gradient(from 135deg at 50% 0, #000 90deg, #0000 0) 0 0 / 3.4cqw
+                        1.7cqw repeat-x,
+                    linear-gradient(#000 0 0) 0 1.7cqw / 100% 100% no-repeat;
+            }
+
+            .pack-body {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 9%;
+                bottom: 0;
+                overflow: hidden;
+                background: linear-gradient(180deg, transparent 55%, rgba(0, 0, 0, 0.22)),
+                    var(--flat);
+                /* Serrated bottom edge. */
+                -webkit-mask: conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) 0
+                        100% / 3.4cqw 1.7cqw repeat-x,
+                    linear-gradient(#000 0 0) 0 0 / 100% calc(100% - 1.7cqw) no-repeat;
+                mask: conic-gradient(from -45deg at 50% 100%, #000 90deg, #0000 0) 0 100% /
+                        3.4cqw 1.7cqw repeat-x,
+                    linear-gradient(#000 0 0) 0 0 / 100% calc(100% - 1.7cqw) no-repeat;
+            }
+
+            .pack-art {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                padding: 5cqw 6cqw 12cqw;
+            }
+            /* Set code, huge and outlined, bleeding off the edge. */
+            .pack-code {
+                position: absolute;
+                right: -7cqw;
+                top: 13cqw;
+                font: 900 64cqw/0.8 "Unbounded", "Poppins", system-ui, sans-serif;
+                letter-spacing: -0.05em;
+                color: transparent;
+                -webkit-text-stroke: 0.5cqw rgba(255, 255, 255, 0.42);
+            }
+            /* Holographic band, its colours sliding with the light. */
+            .pack-band {
+                position: absolute;
+                left: -30%;
+                right: -30%;
+                top: 52%;
+                height: 15cqw;
+                rotate: -14deg;
+                background: linear-gradient(90deg, #ff6ad5, #ffd36b, #7cf5ff, #a98bff, #ff6ad5)
+                    var(--px) 0 / 220% 100%;
+                opacity: 0.92;
+                mix-blend-mode: screen;
+            }
+            .pack-head {
+                position: relative;
+                display: flex;
+                justify-content: space-between;
+                padding-bottom: 2cqw;
+                border-bottom: 0.5cqw solid currentColor;
+                font: 500 2.9cqw/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+            }
+            .pack-name {
+                position: relative;
+                margin-top: auto;
+                font: 900 15cqw/0.86 "Unbounded", "Poppins", system-ui, sans-serif;
+                letter-spacing: -0.02em;
+                text-transform: uppercase;
+                color: var(--name, #fff);
+            }
+            .pack-foot {
+                position: relative;
+                display: flex;
+                align-items: center;
+                gap: 3cqw;
+                margin-top: 4cqw;
+            }
+            .pack-stamp {
+                flex: none;
+                width: 12cqw;
+                aspect-ratio: 1;
+                display: grid;
+                place-items: center;
+                border: 0.5cqw solid;
+                border-radius: 50%;
+                rotate: -12deg;
+                text-align: center;
+                font: 700 2.5cqw/1 "Unbounded", "Poppins", system-ui, sans-serif;
+            }
+            .pack-info {
+                flex: 1;
+                font: 500 2.5cqw/1.35 ui-monospace, "SFMono-Regular", Consolas, monospace;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+            .pack-bar {
+                flex: none;
+                width: 16cqw;
+                height: 8cqw;
+                background: repeating-linear-gradient(
+                    90deg,
+                    currentColor 0 0.4cqw,
+                    transparent 0.4cqw 0.8cqw,
+                    currentColor 0.8cqw 1.4cqw,
+                    transparent 1.4cqw 1.8cqw,
+                    currentColor 1.8cqw 2cqw,
+                    transparent 2cqw 2.6cqw
+                );
+            }
+
+            .pack-layer {
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+            }
+            /* Crinkled foil: embossed noise lit from the top left. */
+            .pack-wrinkles {
+                background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 440' preserveAspectRatio='none'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006 0.02' numOctaves='3' seed='7'/%3E%3CfeDiffuseLighting lighting-color='%23fff' surfaceScale='4'%3E%3CfeDistantLight azimuth='225' elevation='50'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E")
+                    0 0 / 100% 100%;
+                mix-blend-mode: overlay;
+                opacity: 0.22;
+            }
+            /* Holographic foil. Its position stays within 0-100%, so the gradient never
+               runs out and no seam can show. */
+            .pack-foil {
+                background: linear-gradient(
+                        125deg,
+                        transparent 20%,
+                        rgba(255, 80, 200, 0.36) 34%,
+                        rgba(80, 220, 255, 0.36) 48%,
+                        rgba(255, 230, 120, 0.32) 60%,
+                        transparent 76%
+                    )
+                    var(--px) var(--py) / 260% 260%;
+                mix-blend-mode: color-dodge;
+            }
+            /* The wrapper puffs out in the middle and folds over at the sides. */
+            .pack-shade {
+                background: linear-gradient(
+                        90deg,
+                        rgba(255, 255, 255, 0.28) 0 1px,
+                        rgba(0, 0, 0, 0.5) 2px,
+                        transparent 12%,
+                        transparent 88%,
+                        rgba(0, 0, 0, 0.5) calc(100% - 2px),
+                        rgba(255, 255, 255, 0.28) calc(100% - 1px)
+                    ),
+                    radial-gradient(ellipse 70% 55% at 50% 45%, rgba(255, 255, 255, 0.1), transparent);
+            }
+            .pack-glare {
+                background: radial-gradient(
+                    circle at var(--px) var(--py),
+                    rgba(255, 255, 255, 0.5),
+                    rgba(255, 255, 255, 0.1) 22%,
+                    transparent 45%
+                );
+                mix-blend-mode: overlay;
+            }
+            .pack-crimp {
+                top: auto;
+                height: 7%;
+                background: repeating-linear-gradient(
+                        90deg,
+                        transparent 0 3px,
+                        rgba(0, 0, 0, 0.16) 3px 4px
+                    ),
+                    var(--strip);
+                transform: scaleY(-1);
+            }
+
+            /* Shows how to open the pack: a slash of light sweeping across it. */
+            .pack-ghost {
+                display: none;
+                position: absolute;
+                inset: 9% 0 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+            .booster[data-phase="focus"] .is-target .pack-ghost {
+                display: block;
+            }
+            .pack-ghost::before {
+                content: "";
+                position: absolute;
+                left: -30%;
+                top: 34%;
+                width: 160%;
+                height: 3px;
+                border-radius: 3px;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.95) 45%,
+                    rgba(143, 227, 255, 0.9) 55%,
+                    transparent
+                );
+                box-shadow: 0 0 12px rgba(143, 227, 255, 0.9);
+                rotate: -24deg;
+                animation: ghost-slash 2.8s cubic-bezier(0.6, 0, 0.3, 1) infinite;
+            }
+
+            .booster-skip {
+                padding: 8px 12px;
+                border: 0;
+                background: none;
+                color: rgba(255, 255, 255, 0.55);
+                font: 600 13px "Poppins", system-ui, sans-serif;
+                text-decoration: underline;
+                text-underline-offset: 4px;
+                cursor: pointer;
+            }
+            .booster-skip:hover {
+                color: #fff;
+            }
+            .booster-skip:focus-visible {
+                outline: 2px solid #fff;
+                outline-offset: 2px;
+            }
+
+            /* Cut: the hint and the skip link go. An animation, not a transition: the hint is
+               already animated (pulse). */
+            #app-loader.is-cut .booster-hint,
+            #app-loader.is-cut .booster-skip {
+                animation: fade-out 0.25s ease forwards;
+            }
+            /* Reveal: the backdrop clears while the halves fall and the cards burst out. */
+            #app-loader.is-revealing::before {
+                opacity: 0;
+            }
+
+            @keyframes pack-float {
+                50% {
+                    translate: 0 -10px;
+                }
+            }
+            @keyframes pack-sheen {
+                from {
+                    --px: 15%;
+                    --py: 10%;
+                }
+                to {
+                    --px: 85%;
+                    --py: 70%;
+                }
+            }
+            @keyframes ghost-slash {
+                0% {
+                    translate: -70% 0;
+                    opacity: 0;
+                }
+                15% {
+                    opacity: 1;
+                }
+                45%,
+                100% {
+                    translate: 70% 0;
+                    opacity: 0;
+                }
+            }
+            @keyframes fade-out {
+                to {
+                    opacity: 0;
+                    visibility: hidden;
+                }
+            }
+            @keyframes hint-pulse {
+                50% {
+                    opacity: 0.55;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .pack-bob,
+                .pack,
+                .booster-hint,
+                .pack-ghost::before {
+                    animation: none;
+                }
+                .pack-slot {
+                    transition: none;
+                }
+            }
         </style>
     </head>
     <body>
-        <div id="app-loader" role="status" aria-label="Loading">
-            <div class="skeleton-card">
+        <div id="app-loader">
+            <div class="booster" data-phase="pick">
+                <p class="booster-hint" id="booster-hint" aria-live="polite">Pick a booster</p>
+                <!-- One pack per set of CONFIG.SETS, built by booster-intro.js. Their styles are
+                     here, so they show the moment the module runs. -->
+                <div class="booster-stage"></div>
+                <button class="booster-skip" id="booster-skip" type="button">
+                    Skip intro
+                </button>
+            </div>
+
+            <div class="skeleton-card" role="status" aria-label="Loading">
                 <div class="sk-header">
                     <div class="sk-title-group">
                         <div class="sk sk-line sm"></div>
@@ -267,10 +789,12 @@
         </div>
 
         <!-- Safety net: never trap the user behind the loader if the
-             module fails to load for any reason. -->
+             module fails to load for any reason. Once main.js runs it owns the loader,
+             and the booster legitimately waits for a tap. -->
         <script>
             window.addEventListener("load", function () {
                 setTimeout(function () {
+                    if (document.documentElement.dataset.app === "ready") return;
                     var l = document.getElementById("app-loader");
                     if (!l) return;
                     l.classList.add("is-hidden");
@@ -283,27 +807,115 @@
 
         <canvas id="canvas-background"></canvas>
 
-        <button
-            id="view-toggle-btn"
-            class="view-toggle-btn"
-            aria-pressed="false"
-        >
-            <i data-icon="th-large"></i>
-            <span>Grid View</span>
-        </button>
+        <div class="toolbar">
+            <!-- Opens the collection drawer (collection-drawer.js) -->
+            <button
+                id="collection-btn"
+                class="view-toggle-btn collection-btn"
+                type="button"
+                aria-haspopup="dialog"
+                aria-controls="collection-drawer"
+            >
+                <i data-icon="table-cells-large"></i>
+                <span class="toolbar-label">Collection</span>
+                <b class="collection-badge" id="collection-badge" hidden></b>
+            </button>
+            <button
+                id="view-toggle-btn"
+                class="view-toggle-btn"
+                type="button"
+                aria-pressed="false"
+                aria-controls="binder"
+            >
+                <i data-icon="book-open"></i>
+                <span class="toolbar-label">Binder</span>
+            </button>
+        </div>
+
+        <dialog class="collection-drawer" id="collection-drawer" aria-labelledby="collection-title">
+            <header class="collection-head">
+                <div>
+                    <h2 id="collection-title">Collection</h2>
+                    <p id="collection-summary"></p>
+                </div>
+                <button class="collection-close" type="button" aria-label="Close">
+                    <i data-icon="xmark"></i>
+                </button>
+            </header>
+            <!-- One tile per set, built by collection-drawer.js -->
+            <div class="collection-tiles" id="collection-tiles"></div>
+            <!-- Back to square one: every booster sealed again. Asks before it does anything. -->
+            <footer class="collection-foot">
+                <button class="collection-reset" id="collection-reset" type="button">
+                    Reset collection
+                </button>
+                <div class="collection-confirm" id="collection-confirm" role="alertdialog" aria-labelledby="collection-confirm-text" hidden>
+                    <p id="collection-confirm-text">Seal every booster again and start over?</p>
+                    <div>
+                        <button type="button" data-reset="cancel">Cancel</button>
+                        <button type="button" data-reset="confirm" class="is-danger">Reset</button>
+                    </div>
+                </div>
+            </footer>
+        </dialog>
 
         <div class="deck-container" id="deck">
-            <div class="swipe-hint-mobile">
-                <i data-icon="hand-point-down"></i>
-                <p>Swipe Down</p>
-            </div>
             <!-- Cards will be dynamically rendered here by JS -->
         </div>
 
-        <div class="scroll-hint scroll-hint-desktop">
-            <p>Scroll to Cycle Deck</p>
-            <i data-icon="chevron-down"></i>
-        </div>
+        <nav class="deck-nav" aria-label="Cards">
+            <button
+                class="deck-nav-step"
+                id="deck-prev"
+                type="button"
+                aria-label="Previous card"
+            >
+                <i data-icon="chevron-left"></i>
+            </button>
+            <!-- A track cut into one segment per set, dragged to leaf through the deck (deck-nav.js) -->
+            <div class="deck-scrub" id="deck-scrub" role="slider" tabindex="0" aria-label="Cards">
+                <div class="deck-scrub-track" id="deck-scrub-track"></div>
+                <div class="deck-scrub-fill"></div>
+                <div class="deck-scrub-thumb"></div>
+                <div class="deck-scrub-tip" aria-hidden="true"></div>
+            </div>
+            <span class="deck-count" id="deck-count"></span>
+            <button
+                class="deck-nav-step"
+                id="deck-next"
+                type="button"
+                aria-label="Next card"
+            >
+                <i data-icon="chevron-right"></i>
+            </button>
+        </nav>
+
+        <!-- The boosters still sealed, filled by booster-intro.js -->
+        <button class="booster-dock" id="booster-dock" type="button" hidden>
+            <span class="booster-dock-packs"></span>
+            <span class="booster-dock-text"><b></b><small></small></span>
+            <span class="booster-dock-cta">Open</span>
+        </button>
+        <p class="sr-only" id="deck-status" aria-live="polite"></p>
+
+        <section class="binder" id="binder" aria-label="Binder" tabindex="-1" hidden>
+            <div class="binder-stage">
+                <div class="binder-backing"></div>
+                <!-- Leaves built by binder-view.js on open -->
+                <div class="binder-book" id="binder-book"></div>
+                <div class="binder-rings" aria-hidden="true"><i></i><i></i><i></i></div>
+                <div class="binder-tabs" id="binder-tabs" role="group" aria-label="Sets"></div>
+            </div>
+            <nav class="binder-nav" aria-label="Pages">
+                <button id="binder-prev" type="button" aria-label="Previous page">
+                    <i data-icon="chevron-left"></i>
+                </button>
+                <span id="binder-page">1 / 1</span>
+                <button id="binder-next" type="button" aria-label="Next page">
+                    <i data-icon="chevron-right"></i>
+                </button>
+            </nav>
+        </section>
 
         <!-- Single ES-module entry point (native browser modules) -->
         <script type="module" src="public/js/main.js"></script>

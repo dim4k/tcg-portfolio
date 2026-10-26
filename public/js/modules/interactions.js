@@ -1,6 +1,49 @@
 import { CONFIG } from "../config.js";
 import { Utils } from "./utils.js";
 
+function setCardVars(card, { mx, my, glare }) {
+    card.style.setProperty("--mx", `${mx}%`);
+    card.style.setProperty("--my", `${my}%`);
+    card.style.setProperty("--glare-opacity", `${glare}`);
+}
+
+/**
+ * Apply a 3D tilt transform and the holo/glare CSS variables to a card.
+ * Shared by the mouse-move and gyroscope code paths.
+ */
+function applyTilt(card, { rotateX, rotateY, scale = 1, glare, mx, my }) {
+    const scalePart = scale !== 1 ? ` scale(${scale})` : "";
+    card.style.transform = `perspective(${CONFIG.TILT_PERSPECTIVE}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)${scalePart}`;
+    setCardVars(card, { mx, my, glare });
+}
+
+/**
+ * Tilt a card towards the pointer. `rect` is the card's untransformed box: reading it from
+ * the tilted card itself would make the tilt chase its own projection.
+ */
+export function pointerTilt(card, rect, clientX, clientY) {
+    if (Utils.prefersReducedMotion()) return;
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    applyTilt(card, {
+        rotateX: ((y - centerY) / centerY) * CONFIG.MOUSE_ROTATION_FACTOR,
+        rotateY: ((x - centerX) / centerX) * -CONFIG.MOUSE_ROTATION_FACTOR,
+        scale: CONFIG.TILT_SCALE,
+        glare: CONFIG.GLARE_MOUSE,
+        mx: (x / rect.width) * 100,
+        my: (y / rect.height) * 100,
+    });
+}
+
+export function resetTilt(card) {
+    card.style.transform = "";
+    setCardVars(card, { mx: 50, my: 50, glare: 0 });
+}
+
 export class InteractionManager {
     constructor(deckManager) {
         this.deckManager = deckManager;
@@ -9,29 +52,29 @@ export class InteractionManager {
         this.hasPending = false;
         // Reused in place so pointer/gyro events allocate nothing.
         this.pending = { card: null, mode: "", a: 0, b: 0 };
-        this.rectCache = { card: null, grid: false, rect: null };
+        this.rectCache = { card: null, rect: null };
         this.boundFrame = () => this.runFrame();
         this.orientationHandler = null;
-        this.hintTimer = null;
-        this.hintInterval = null;
-        this.hintRepeats = 0;
         this.wheelAccum = 0;
         this.wheelResetTimer = null;
         this.state = {
             isMobile: Utils.isMobile(),
             gyroBase: { beta: 0, gamma: 0 },
             gyroInitialized: false,
-            swipeHintDismissed: false,
-            touchStartY: 0,
         };
 
         this.elements = {
             deckContainer: document.getElementById("deck"),
-            swipeHint: document.querySelector(".swipe-hint-mobile"),
         };
 
         this.bindEvents();
         this.syncMobileFeatures();
+    }
+
+    // Tilt must leave the card alone while it is held, thrown, or behind the binder.
+    get isBusy() {
+        const deck = this.deckManager;
+        return deck.isAnimating || deck.isDragging || deck.isBinderOpen;
     }
 
     bindEvents() {
@@ -48,16 +91,6 @@ export class InteractionManager {
             passive: true,
         });
 
-        // Touch (passive)
-        window.addEventListener(
-            "touchstart",
-            (e) => this.handleTouchStart(e),
-            { passive: true }
-        );
-        window.addEventListener("touchend", (e) => this.handleTouchEnd(e), {
-            passive: true,
-        });
-
         // Keyboard navigation: cycle the deck with the arrow keys.
         window.addEventListener("keydown", (e) => this.handleKeydown(e));
 
@@ -65,18 +98,11 @@ export class InteractionManager {
         window.addEventListener("resize", () => this.invalidateRect(), {
             passive: true,
         });
-        this.elements.deckContainer.addEventListener(
-            "scroll",
-            () => this.invalidateRect(),
-            { passive: true }
-        );
 
         // Rotating a phone or resizing across the breakpoint must (de)activate the mobile bits.
         Utils.mobileMql.addEventListener("change", () =>
             this.syncMobileFeatures()
         );
-
-        // Theme switcher handled by component
     }
 
     syncMobileFeatures() {
@@ -85,10 +111,8 @@ export class InteractionManager {
 
         if (this.state.isMobile) {
             this.initializeGyroscope();
-            this.initializeSwipeHint();
         } else {
             this.teardownGyroscope();
-            this.stopSwipeHint();
         }
     }
 
@@ -102,19 +126,15 @@ export class InteractionManager {
 
     /**
      * Measuring inside the frame callback would force a synchronous layout, because the previous
-     * frame just wrote a transform on this very element. In deck view the active card is inset
-     * into the container, so the container's box is the card's untransformed box.
+     * frame just wrote a transform on this very element. The active card is inset into the
+     * container, so the container's box is the card's untransformed box.
      */
     getCardRect(card) {
         const cache = this.rectCache;
-        const grid = this.deckManager.isGridView;
 
-        if (cache.card !== card || cache.grid !== grid) {
+        if (cache.card !== card) {
             cache.card = card;
-            cache.grid = grid;
-            cache.rect = (
-                grid ? card : this.elements.deckContainer
-            ).getBoundingClientRect();
+            cache.rect = this.elements.deckContainer.getBoundingClientRect();
         }
         return cache.rect;
     }
@@ -138,14 +158,15 @@ export class InteractionManager {
         this.hasPending = false;
 
         const { card, mode, a, b } = this.pending;
-        if (!card) return;
+        // A drag may have started between the event and this frame.
+        if (!card || this.isBusy) return;
 
         if (mode === "pointer") this.applyCardEffect(card, a, b);
         else this.applyOrientation(card, a, b);
     }
 
     handleKeydown(e) {
-        if (this.deckManager.isGridView) return;
+        if (this.deckManager.isBinderOpen) return;
         if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
 
         const navKeys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"];
@@ -166,18 +187,12 @@ export class InteractionManager {
     }
 
     handleMouseMove(e) {
-        if (this.deckManager.isAnimating) return;
+        if (this.isBusy) return;
 
-        let targetCard;
-        if (this.deckManager.isGridView) {
-            targetCard = e.target.closest("tcg-card");
-        } else {
-            targetCard = this.getActiveCard();
-        }
+        const targetCard = this.getActiveCard();
 
-        // If we switched cards (or moved off a card in grid view), reset the old one
         if (this.lastHoveredCard && this.lastHoveredCard !== targetCard) {
-            this.resetCardEffect(this.lastHoveredCard);
+            resetTilt(this.lastHoveredCard);
         }
         this.lastHoveredCard = targetCard;
 
@@ -195,62 +210,21 @@ export class InteractionManager {
         this.hasPending = false;
         this.pending.card = null;
         this.invalidateRect();
-        if (this.lastHoveredCard) {
-            this.resetCardEffect(this.lastHoveredCard);
-            this.lastHoveredCard = null;
+        // A card that is held or flying owns its transform. A flicked card leaves the pointer
+        // behind mid-flight, and clearing its transform then would pull it back to the deck.
+        const deck = this.deckManager;
+        if (this.lastHoveredCard && !deck.isDragging && !deck.isAnimating) {
+            resetTilt(this.lastHoveredCard);
         }
-    }
-
-    setCardVars(card, { mx, my, glare }) {
-        card.style.setProperty("--mx", `${mx}%`);
-        card.style.setProperty("--my", `${my}%`);
-        card.style.setProperty("--glare-opacity", `${glare}`);
-    }
-
-    /**
-     * Apply a 3D tilt transform and the holo/glare CSS variables to a card.
-     * Shared by the mouse-move and gyroscope code paths.
-     */
-    applyTilt(card, { rotateX, rotateY, scale = 1, glare, mx, my }) {
-        const scalePart = scale !== 1 ? ` scale(${scale})` : "";
-        card.style.transform = `perspective(${CONFIG.TILT_PERSPECTIVE}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)${scalePart}`;
-        this.setCardVars(card, { mx, my, glare });
+        this.lastHoveredCard = null;
     }
 
     applyCardEffect(card, clientX, clientY) {
-        if (Utils.prefersReducedMotion()) return;
-
-        const rect = this.getCardRect(card);
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-
-        const rotateX =
-            ((y - centerY) / centerY) * CONFIG.MOUSE_ROTATION_FACTOR;
-        const rotateY =
-            ((x - centerX) / centerX) * -CONFIG.MOUSE_ROTATION_FACTOR;
-
-        const pctX = (x / rect.width) * 100;
-        const pctY = (y / rect.height) * 100;
-
-        this.applyTilt(card, {
-            rotateX,
-            rotateY,
-            scale: CONFIG.TILT_SCALE,
-            glare: CONFIG.GLARE_MOUSE,
-            mx: pctX,
-            my: pctY,
-        });
-    }
-
-    resetCardEffect(card) {
-        card.style.transform = "";
-        this.setCardVars(card, { mx: 50, my: 50, glare: 0 });
+        pointerTilt(card, this.getCardRect(card), clientX, clientY);
     }
 
     handleWheel(e) {
-        if (this.deckManager.isGridView || this.deckManager.isAnimating) {
+        if (this.isBusy) {
             this.wheelAccum = 0;
             return;
         }
@@ -271,29 +245,9 @@ export class InteractionManager {
         this.deckManager.rotateCards(direction);
     }
 
-    handleTouchStart(e) {
-        this.state.touchStartY = e.touches[0].clientY;
-    }
-
-    handleTouchEnd(e) {
-        if (this.deckManager.isGridView) return;
-        const touchEndY = e.changedTouches[0].clientY;
-        const swipeDistance = touchEndY - this.state.touchStartY;
-
-        if (Math.abs(swipeDistance) < CONFIG.SWIPE_THRESHOLD) return;
-
-        this.hideSwipeHint();
-        this.deckManager.rotateCards(swipeDistance > 0 ? 1 : -1);
-    }
-
     handleOrientation(event) {
         const activeCard = this.getActiveCard();
-        if (
-            !activeCard ||
-            this.deckManager.isAnimating ||
-            this.deckManager.isGridView
-        )
-            return;
+        if (!activeCard || this.isBusy) return;
 
         if (!this.state.gyroInitialized) {
             this.state.gyroBase.beta = event.beta || 0;
@@ -331,7 +285,7 @@ export class InteractionManager {
         const pctX = Utils.clamp(50 + relativeGamma * 2, 0, 100);
         const pctY = Utils.clamp(50 + relativeBeta * 2, 0, 100);
 
-        this.applyTilt(card, {
+        applyTilt(card, {
             rotateX: -rotateX,
             rotateY,
             glare: CONFIG.GLARE_GYRO,
@@ -382,59 +336,5 @@ export class InteractionManager {
         );
         this.orientationHandler = null;
         this.state.gyroInitialized = false;
-    }
-
-    showSwipeHint() {
-        if (!this.elements.swipeHint || this.state.swipeHintDismissed) return;
-
-        this.elements.swipeHint.classList.remove("show");
-        void this.elements.swipeHint.offsetWidth;
-        this.elements.swipeHint.classList.add("show");
-    }
-
-    hideSwipeHint() {
-        this.state.swipeHintDismissed = true;
-        this.stopSwipeHint();
-        if (this.elements.swipeHint) {
-            this.elements.swipeHint.classList.remove("show");
-            this.elements.swipeHint.style.display = "none";
-        }
-    }
-
-    initializeSwipeHint() {
-        if (!this.state.isMobile || !this.elements.swipeHint) return;
-        if (
-            this.state.swipeHintDismissed ||
-            this.hintTimer ||
-            this.hintInterval
-        ) {
-            return;
-        }
-
-        this.hintRepeats = 0;
-        this.hintTimer = setTimeout(() => {
-            this.hintTimer = null;
-            this.showSwipeHint();
-
-            // Bounded: each repeat forces a reflow, and the user may simply never swipe.
-            this.hintInterval = setInterval(() => {
-                this.hintRepeats++;
-                if (
-                    this.state.swipeHintDismissed ||
-                    this.hintRepeats >= CONFIG.HINT_MAX_REPEATS
-                ) {
-                    this.stopSwipeHint();
-                } else {
-                    this.showSwipeHint();
-                }
-            }, CONFIG.HINT_REPEAT_INTERVAL);
-        }, CONFIG.HINT_INITIAL_DELAY);
-    }
-
-    stopSwipeHint() {
-        clearTimeout(this.hintTimer);
-        clearInterval(this.hintInterval);
-        this.hintTimer = null;
-        this.hintInterval = null;
     }
 }

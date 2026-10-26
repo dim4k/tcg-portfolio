@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <!-- Source of public/img/og-image.png, the 1200x630 link preview. See the README. -->
+        <title>Share preview</title>
+        <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Lato:wght@400;700&display=swap"
+        />
+        <link rel="stylesheet" href="../public/css/modules/base.css" />
+        <style>
+            html,
+            body {
+                width: 1200px;
+                height: 630px;
+                margin: 0;
+                overflow: hidden;
+            }
+
+            body {
+                display: block;
+                background: radial-gradient(
+                    circle at 28% 45%,
+                    #8a1010 0%,
+                    #4a0000 45%,
+                    #160000 100%
+                );
+            }
+
+            .fan {
+                position: absolute;
+                left: 150px;
+                top: 50%;
+                width: calc(600px * var(--card-aspect));
+                height: 600px;
+                transform: translateY(-50%) scale(0.88);
+            }
+
+            .fan tcg-card:nth-child(1) {
+                transform: translateX(-70px) rotate(-14deg);
+                filter: brightness(0.55);
+            }
+
+            .fan tcg-card:nth-child(2) {
+                transform: translateX(-30px) rotate(-7deg);
+                filter: brightness(0.7);
+            }
+
+            .fan tcg-card:nth-child(3) {
+                transform: translateX(10px) rotate(2deg);
+            }
+
+            .copy {
+                position: absolute;
+                left: 660px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: #fff;
+                font-family: "Poppins", sans-serif;
+            }
+
+            .kicker {
+                font-size: 20px;
+                font-weight: 600;
+                letter-spacing: 0.3em;
+                text-transform: uppercase;
+                color: #ff9d9d;
+            }
+
+            h1 {
+                margin: 12px 0 8px;
+                font-size: 76px;
+                line-height: 1;
+            }
+
+            .role {
+                font-size: 32px;
+                font-weight: 600;
+                color: #ffd0d0;
+            }
+
+            .url {
+                margin-top: 40px;
+                font: 700 24px "Lato", sans-serif;
+                color: rgba(255, 255, 255, 0.7);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="fan" id="fan"></div>
+        <div class="copy">
+            <div class="kicker">TCG Portfolio</div>
+            <h1>Antoine Kim</h1>
+            <div class="role">Engineering Manager</div>
+            <div class="url">antoine.kim</div>
+        </div>
+
+        <script type="module">
+            import { CONFIG } from "../public/js/config.js";
+            import { setLabel } from "../public/js/modules/card-renderer.js";
+            import "../public/js/components/tcg-card.js";
+
+            // Two cards peeking from behind the profile card, as in the deck.
+            const fan = document.getElementById("fan");
+            [CONFIG.CARDS[1], CONFIG.CARDS[2], CONFIG.CARDS[0]].forEach((data) => {
+                const index = CONFIG.CARDS.indexOf(data);
+                const card = document.createElement("tcg-card");
+                card.dataset.pos = "0";
+                card.data = {
+                    ...data,
+                    // Image paths in CONFIG are relative to index.html, one level up.
+                    image: data.image && `../${data.image}`,
+                    setLabel: setLabel(index, CONFIG.CARDS.length),
+                };
+                // Foil caught by a light from the top left.
+                card.style.setProperty("--mx", "28%");
+                card.style.setProperty("--my", "22%");
+                card.style.setProperty("--glare-opacity", "0.7");
+                fan.appendChild(card);
+            });
+        </script>
+    </body>
+</html>

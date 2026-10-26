@@ -33,6 +33,32 @@ export const Utils = {
     },
 
     /**
+     * Copy text to the clipboard. The async API only exists in secure contexts and can still
+     * refuse (an unfocused document, a denied permission), so both cases fall back to the
+     * legacy selection-based command.
+     * @returns {Promise<void>}
+     */
+    copyText: function (text) {
+        const legacyCopy = () => {
+            const area = document.createElement("textarea");
+            area.value = text;
+            area.setAttribute("readonly", "");
+            area.style.position = "fixed";
+            area.style.opacity = "0";
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand("copy");
+            area.remove();
+            if (!ok) throw new Error("execCommand copy was refused");
+        };
+
+        if (!navigator.clipboard?.writeText) {
+            return new Promise((resolve) => resolve(legacyCopy()));
+        }
+        return navigator.clipboard.writeText(text).catch(legacyCopy);
+    },
+
+    /**
      * Shared media queries. Exposed as MediaQueryList so callers can subscribe to changes.
      */
     mobileMql,

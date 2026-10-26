@@ -5,3 +5,19 @@ Sources for the card images in this folder.
   Marvin Meyer (@marvelous) — https://unsplash.com/photos/SYTO3xs06fU
   Unsplash License, free to use, attribution not required:
   https://unsplash.com/license
+
+- projects/projects.jpg
+  Unsplash photo, file photo-1623520333087-62b8793e3d23 (photographer to be confirmed).
+  Unsplash License.
+
+- projects/ezloc.jpg, cookim.jpg
+  Screenshots of the live sites, provided by the author.
+
+- projects/map2poster.jpg, kimpay.jpg, naolib.jpg
+  Cropped from the screenshots in each project's own repository (github.com/dim4k).
+
+- projects/mixera.jpg
+  Screenshot of the live demo, https://dim4k.github.io/mixera/
+
+- projects/tcg-portfolio.jpg
+  Cropped from og-image.png in this folder.
