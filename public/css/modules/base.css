@@ -37,6 +37,9 @@
     --bg-grass: #0d3d1f;
     --bg-ice: #0a3d52;
     --bg-default: #101010;
+    /* Rare and gold cards (CONFIG.RARITIES) colour the page whatever their theme. */
+    --bg-gold: #3a2906;
+    --bg-rare: #1d1438;
 
     /* Frosted-glass tints, by opacity percentage. */
     --glass-10: rgba(255, 255, 255, 0.1);
@@ -71,6 +74,21 @@ body {
     transition: background-color 0.8s ease;
 }
 
+/* An app to handle, not a page to read: clicks, drags and double taps must not leave
+   highlighted text behind on buttons, tabs and counters. Anything typed into stays selectable. */
+body {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+[contenteditable] {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 /* Canvas background */
 #canvas-background {
     position: fixed;
@@ -100,6 +118,35 @@ body::before {
         #000000 130%
     );
     z-index: var(--z-canvas);
+}
+
+/* Behind a rare or gold card, the room takes its light: a golden glow, or an iridescent veil.
+   DeckManager.updateBackground() names the rarity of the card in front. */
+body::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: var(--z-canvas);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+}
+
+body[data-rarity="gold"]::after {
+    opacity: 1;
+    background: radial-gradient(120% 80% at 50% 40%, rgba(255, 205, 110, 0.28), transparent 65%);
+}
+
+body[data-rarity="rare"]::after {
+    opacity: 1;
+    background: linear-gradient(
+        125deg,
+        rgba(130, 70, 220, 0.3),
+        rgba(40, 110, 210, 0.25) 30%,
+        rgba(30, 150, 140, 0.22) 50%,
+        rgba(170, 130, 40, 0.22) 70%,
+        rgba(180, 50, 130, 0.3)
+    );
 }
 
 /* ==========================================
@@ -356,6 +403,48 @@ body::before {
 
 .collection-badge[hidden] {
     display: none;
+}
+
+/* While a booster's cards are revealed, Collection is where they go: the toolbar comes up
+   over the booster overlay (booster-intro.js), Collection lit and the rest out of the way. */
+body.booster-revealing .toolbar {
+    z-index: 10001;
+    pointer-events: none;
+}
+
+body.booster-revealing .view-toggle-btn:not(.collection-btn) {
+    opacity: 0.3;
+}
+
+body.booster-revealing .collection-btn {
+    border-color: rgba(143, 227, 255, 0.7);
+    box-shadow: 0 0 18px rgba(143, 227, 255, 0.4);
+}
+
+/* Catching a card: the button gives, the badge counts it. */
+.collection-btn.is-catching {
+    animation: collection-catch 0.38s ease-out;
+}
+
+.collection-badge.is-incoming {
+    background: #8fe3ff;
+    color: #0a0b1e;
+    animation: badge-pop 0.35s ease-out;
+}
+
+@keyframes collection-catch {
+    35% {
+        scale: 1.14;
+    }
+    70% {
+        scale: 0.97;
+    }
+}
+
+@keyframes badge-pop {
+    40% {
+        scale: 1.35;
+    }
 }
 
 .collection-drawer {
@@ -707,6 +796,31 @@ body.binder-active .deck-nav,
 body.binder-active .deck-container,
 body.binder-active .booster-dock {
     visibility: hidden;
+}
+
+/* The toolbar follows the view. Collection narrows the deck, so it goes with the deck; the
+   binder has its own set tabs, and a reminder of the boosters still sealed instead. */
+body.binder-active .collection-btn,
+body:not(.binder-active) .booster-btn,
+.booster-btn[hidden] {
+    display: none;
+}
+
+.booster-btn {
+    position: relative;
+}
+
+.booster-btn-packs {
+    display: flex;
+}
+
+.booster-btn-packs .pack-mini {
+    width: 20px;
+}
+
+.booster-btn-packs .pack-mini + .pack-mini {
+    margin-left: -12px;
+    rotate: 6deg;
 }
 
 .toolbar button:focus-visible,

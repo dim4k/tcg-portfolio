@@ -23,13 +23,14 @@ This project reimagines the traditional web portfolio as a deck of collectible c
 ### 🎨 Visual Experience
 
 -   **Holographic VMAX Effect**: Realistic foil textures, glitter, and glare that react to light.
+-   **Rare and Gold Cards**: `rarity: "rare"` or `rarity: "gold"` on a card in `config.js`. A rare gets a rainbow foil with glitter and a light that breathes at rest, a gold an engraved gold finish with sparkles; in front of the deck, either one colours the whole page. In a booster they come out last: a rare with a halo, a gold with its back cracking open.
 -   **3D Tilt Physics**: Cards rotate based on mouse position (Desktop) or device orientation (Mobile Gyroscope).
 -   **Swirl Background**: A dynamic, noise-based particle system that creates a living backdrop.
 -   **Infinite Deck**: The stacking logic supports any number of cards automatically.
--   **Boosters & Collection**: The first visit of a session opens on one sealed pack per set. Pick one and slice it with a stroke in any direction: its cards burst out, fan, then snap into the deck. The deck is your collection: every booster opened adds its cards, filed by set. Packs still sealed wait in a dock above the deck navigation; several open a pick among them.
+-   **Boosters & Collection**: The first visit of a session opens on one sealed pack per set. Pick one and slice it with a stroke in any direction: its cards come out face down. Tap to turn the top one over, tap again to send it flying into the Collection button; the rare and gold cards come last, each with its own reveal, and the deck comes back with the new cards. The deck is your collection: every booster opened adds its cards, filed by set. Packs still sealed wait in a dock above the deck navigation; several open a pick among them.
 -   **Card Backs**: Click a card (or its flip button) to turn it over and read the details on its back.
 -   **Collection Drawer**: A toolbar button opens one tile per set, with its pack and progress: an opened set narrows the deck to its cards, a sealed one opens its booster.
--   **Binder**: A book whose pages turn with a drag or a tap (two pages side by side on wide screens, one on phones), with a divider page and colour tab per set. Sealed sets show mystery pockets and a button to open their booster; picking a card sends it to the front of the deck.
+-   **Binder**: A book whose pages turn with a drag or a tap (two pages side by side on wide screens, one on phones), with a divider page and colour tab per set. Sealed sets show mystery pockets and a button to open their booster. A ring-less card binder: its pages are stitched into the spine, and blur as they turn. Picking a card takes it out of its pocket, full size, and it handles like the front card of the deck: it leans towards the mouse or the phone's tilt, a tap turns it over, and a throw sends it back to the binder. It can also be put back, or sent to the front of the deck. The binder is a view of its own: its own background, and in the toolbar a Boosters button counting the boosters still sealed takes the place of Collection.
 
 ### 🎮 Interactions
 

@@ -1,6 +1,10 @@
 import { CONFIG } from "../config.js";
 import { icon } from "./icons.js";
 import { setCards } from "./card-renderer.js";
+import { packMarkup, packStyle } from "./booster-pack.js";
+import { followPointer, grabFromControl, isThrow, pressedControl } from "./card-drag.js";
+import { resetTilt } from "./interactions.js";
+import { Utils } from "./utils.js";
 
 // Natural size a thumbnail is laid out at before being scaled into its pocket.
 // Keep in sync with --thumb-w / --thumb-h in binder.css.
@@ -14,15 +18,22 @@ const PAGE_RATIO = 0.72;
 // Room around the book: the toolbar above, the page navigation below, the tabs on the side.
 const ROOM_TOP = 96;
 const ROOM_BOTTOM = 84;
-const ROOM_TABS = 110;
+const ROOM_TABS = 150;
 const GUTTER = 16;
 // A dragged page turns once pulled past this share of its width.
 const TURN_THRESHOLD = 0.3;
 // Must match the .leaf transition in binder.css.
 const TURN_DURATION = 800;
 const JUMP_STEP = 110;
+// The tabs come back out a little before the page has fully landed.
+const TABS_BACK = TURN_DURATION - 150;
 // Pointer travel (px) under which a press on the book is a tap.
 const TAP_DISTANCE = 8;
+// A card taken out of its pocket: flight between the pocket and the middle of the screen,
+// flight off screen when thrown away, and the bounce of its pocket taking it back.
+const PEEK_FLIGHT = 520;
+const THROW_FLIGHT = 450;
+const POCKET_BOUNCE = 380;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
@@ -31,18 +42,25 @@ const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
  * The binder: a book whose pages turn with a drag or a tap. A cover, then for each set of
  * CONFIG.SETS a divider page and as many sheets of nine pockets as its cards need. Two pages
  * side by side on wide screens, one on narrow ones. Sets still sealed show mystery pockets and
- * a button to open their booster; picking a card sends it to the front of the deck.
+ * a button to open their booster; picking a card takes it out of its pocket, to look at it or
+ * send it to the front of the deck.
  */
 export class BinderView {
     constructor(deckManager) {
         this.deckManager = deckManager;
         this.root = document.getElementById("binder");
         this.toggleBtn = document.getElementById("view-toggle-btn");
+        this.boostersBtn = document.getElementById("binder-boosters");
         this.book = document.getElementById("binder-book");
-        // Moved into the book on each build, to be stacked between its leaves (see show()).
-        this.rings = this.root.querySelector(".binder-rings");
         this.tabsRoot = document.getElementById("binder-tabs");
         this.pageLabel = document.getElementById("binder-page");
+        this.stage = this.root.querySelector(".binder-stage");
+        this.nav = this.root.querySelector(".binder-nav");
+        this.peekEl = document.getElementById("binder-peek");
+        this.peekSlot = document.getElementById("binder-peek-card");
+        // The card out of its pocket: { pocket, set, index, card }, and the drag holding it.
+        this.peeking = null;
+        this.peekDrag = null;
         this.pages = [];
         this.leaves = [];
         this.thumbs = new Map();
@@ -50,6 +68,9 @@ export class BinderView {
         // Leaves turned over to the left: the visible page is leaf `turned`.
         this.turned = 0;
         this.drag = null;
+        // Until when leaves may still be turning, and the frame keeping their order meanwhile.
+        this.settleAt = 0;
+        this.stackFrame = null;
         this.isOpen = false;
         this.stale = true;
 
@@ -64,7 +85,12 @@ export class BinderView {
         // Opened boosters fill pockets: rebuild on the next opening.
         document.addEventListener("deck-cards-change", () => {
             this.stale = true;
+            this.syncBoosters();
         });
+        // No set named: the booster opens on the pick among the sealed ones, or the last one.
+        this.boostersBtn.addEventListener("click", () =>
+            document.dispatchEvent(new CustomEvent("open-booster", { detail: {} }))
+        );
         document
             .getElementById("binder-prev")
             .addEventListener("click", () => this.turn(-1));
@@ -81,10 +107,13 @@ export class BinderView {
         });
 
         this.bindBook();
+        this.bindPeek();
+        this.syncBoosters();
     }
 
     /** @param {string} [setId] Open on that set's divider page. */
     open(setId) {
+        this.dropPeek();
         this.isOpen = true;
         this.root.hidden = false;
         this.deckManager.setBinderOpen(true);
@@ -102,11 +131,34 @@ export class BinderView {
 
     close() {
         if (!this.isOpen) return;
+        this.dropPeek();
         this.isOpen = false;
         this.root.hidden = true;
         this.deckManager.setBinderOpen(false);
         this.syncToggle();
         this.toggleBtn.focus();
+    }
+
+    /** The toolbar reminder of the boosters still sealed, shown in the binder view only. */
+    syncBoosters() {
+        const sealed = CONFIG.SETS.filter((set) => !this.deckManager.has(set));
+        this.boostersBtn.hidden = sealed.length === 0;
+        if (!sealed.length) return;
+        this.boostersBtn.querySelector(".collection-badge").textContent = sealed.length;
+        this.boostersBtn.setAttribute(
+            "aria-label",
+            sealed.length > 1 ? `Open a booster, ${sealed.length} left` : `Open the ${sealed[0].name} booster`
+        );
+        this.boostersBtn.querySelector(".booster-btn-packs").replaceChildren(
+            ...sealed.slice(0, 2).map((set) => {
+                const mini = document.createElement("span");
+                mini.className = "pack-mini";
+                mini.dataset.pack = set.id;
+                mini.style.cssText = packStyle(set);
+                mini.innerHTML = packMarkup(set);
+                return mini;
+            })
+        );
     }
 
     syncToggle() {
@@ -120,6 +172,10 @@ export class BinderView {
 
     onKeydown(e) {
         if (!this.isOpen) return;
+        if (this.peeking) {
+            if (e.key === "Escape") this.putBack();
+            return;
+        }
         if (e.key === "Escape") this.close();
         else if (e.key === "ArrowRight") this.turn(1);
         else if (e.key === "ArrowLeft") this.turn(-1);
@@ -181,7 +237,7 @@ export class BinderView {
             leaf.append(front, back);
             return leaf;
         });
-        this.book.replaceChildren(...this.leaves, this.rings);
+        this.book.replaceChildren(...this.leaves);
 
         this.buildTabs();
         this.layout();
@@ -224,6 +280,7 @@ export class BinderView {
             const owned = deck.opened.reduce((n, set) => n + setCards(set).length, 0);
             const all = CONFIG.SETS.reduce((n, set) => n + setCards(set).length, 0);
             el.innerHTML = `
+                <span class="cover-spine"></span>
                 <span class="cover-eyebrow">TCG Portfolio</span>
                 <span class="cover-title">Collection</span>
                 <span class="cover-count">${owned} / ${all} cards · ${CONFIG.SETS.length} sets</span>`;
@@ -321,6 +378,8 @@ export class BinderView {
             tab.dataset.page = at;
             tab.dataset.set = set.id;
             tab.style.setProperty("--set-color", set.booster.highlight);
+            // Rank, for the tabs coming back out one after the other.
+            tab.style.setProperty("--i", CONFIG.SETS.indexOf(set));
             tab.classList.toggle("is-sealed", !open);
             tab.setAttribute("aria-label", `${set.name}${open ? "" : ", sealed"}`);
             tab.append(icon(open ? set.icon : "lock"));
@@ -335,14 +394,16 @@ export class BinderView {
     /* ---------- Turning ---------- */
 
     /** Show leaf `index`: every leaf before it turned over, the others still to read. */
-    show(index, animate = true, turning = null) {
+    show(index, animate = true) {
         const count = this.leaves.length;
+        const before = this.visibleFaces();
         this.turned = clamp(index, 0, count - 1);
+        const still = new Set();
         this.leaves.forEach((leaf, j) => {
-            const over = j < this.turned;
+            const flip = j < this.turned ? 1 : 0;
+            if (Number(leaf.style.getPropertyValue("--flip")) === flip) still.add(leaf);
             leaf.classList.toggle("no-transition", !animate);
-            leaf.style.setProperty("--flip", over ? 1 : 0);
-            leaf.style.zIndex = leaf === turning ? 3 * count : over ? j + 1 : 2 * count - j;
+            leaf.style.setProperty("--flip", flip);
 
             // Only the faces on screen can be reached.
             const [front, back] = leaf.children;
@@ -353,15 +414,19 @@ export class BinderView {
             void this.book.offsetWidth;
             this.leaves.forEach((leaf) => leaf.classList.remove("no-transition"));
         }
-        // Above every leaf lying flat, under the one turning (3 * count), which passes over.
-        this.rings.style.zIndex = 2 * count + 1;
-        if (turning) {
-            setTimeout(() => {
-                turning.style.zIndex =
-                    this.leaves.indexOf(turning) < this.turned
-                        ? this.leaves.indexOf(turning) + 1
-                        : 2 * count - this.leaves.indexOf(turning);
-            }, TURN_DURATION);
+        this.stack(animate ? TURN_DURATION : 0);
+        if (animate) this.tuckTabs(TABS_BACK);
+
+        // A page uncovered by the one turning away comes out of its shadow, into focus.
+        if (animate && !Utils.prefersReducedMotion()) {
+            this.visibleFaces()
+                .filter((face) => !before.includes(face) && still.has(face.parentElement))
+                .forEach((face) =>
+                    face.firstElementChild.animate(
+                        [{ filter: "blur(2.5px) brightness(0.7)" }, { filter: "none" }],
+                        { duration: TURN_DURATION, easing: "cubic-bezier(.4,0,.2,1)" }
+                    )
+                );
         }
 
         this.root.classList.toggle("is-open-book", this.turned > 0);
@@ -370,6 +435,48 @@ export class BinderView {
         this.tabsRoot.querySelectorAll(".binder-tab").forEach((tab) =>
             tab.setAttribute("aria-current", String(tab.dataset.set === current?.id))
         );
+    }
+
+    /**
+     * The tabs tuck in behind the book while pages turn, and come back out once they have
+     * landed: a run of turns (a jump to a tab) keeps them in until the last one.
+     * @param {number|null} ms How long until they come out; null keeps them in (a drag).
+     */
+    tuckTabs(ms) {
+        if (Utils.prefersReducedMotion()) return;
+        this.root.classList.add("is-flipping");
+        clearTimeout(this.tabsTimer);
+        if (ms === null) return;
+        this.tabsTimer = setTimeout(() => this.root.classList.remove("is-flipping"), ms);
+    }
+
+    /** The faces on screen: the right page, and the left one in a spread. */
+    visibleFaces() {
+        const faces = [this.leaves[this.turned]?.children[0]];
+        if (this.mode === "spread") faces.push(this.leaves[this.turned - 1]?.children[1]);
+        return faces.filter(Boolean);
+    }
+
+    /**
+     * Order the leaves from how far each has turned: on either side of the spine, the leaf
+     * closest to the reader on top. Kept up to date on every frame while pages turn, so a
+     * leaf crossing the spine goes from the top of one pile to the top of the other.
+     * @param {number} duration How long the leaves may keep turning (ms).
+     */
+    stack(duration = 0) {
+        this.settleAt = Math.max(this.settleAt, performance.now() + duration);
+        if (this.stackFrame) return;
+        const frame = () => {
+            const count = this.leaves.length;
+            this.leaves.forEach((leaf, j) => {
+                const flip = Number(getComputedStyle(leaf).getPropertyValue("--flip")) || 0;
+                leaf.style.zIndex = flip < 0.5 ? count - j : count + j;
+                leaf.classList.toggle("is-turning", flip > 0.001 && flip < 0.999);
+            });
+            const moving = this.drag?.leaf || performance.now() < this.settleAt;
+            this.stackFrame = moving ? requestAnimationFrame(frame) : null;
+        };
+        frame();
     }
 
     /** Set of the page on the right (spread) or on screen (single). */
@@ -381,8 +488,7 @@ export class BinderView {
     turn(direction) {
         const next = this.turned + direction;
         if (next < 0 || next >= this.leaves.length) return;
-        const leaf = this.leaves[direction > 0 ? this.turned : next];
-        this.show(next, true, leaf);
+        this.show(next);
     }
 
     async jumpTo(at) {
@@ -426,7 +532,8 @@ export class BinderView {
             drag.leaf = canTurn ? this.leaves[index] : null;
             if (drag.leaf) {
                 drag.leaf.classList.add("is-dragging");
-                drag.leaf.style.zIndex = 3 * this.leaves.length;
+                this.stack();
+                this.tuckTabs(null);
             }
         }
         if (!drag.leaf) return;
@@ -451,7 +558,7 @@ export class BinderView {
         if (!drag.leaf) return;
         drag.leaf.classList.remove("is-dragging");
         const next = drag.p > TURN_THRESHOLD ? this.turned + drag.dir : this.turned;
-        this.show(next, true, drag.leaf);
+        this.show(next);
     }
 
     /** A pocket or a button of the book was picked. @returns {boolean} Whether it was one. */
@@ -466,11 +573,204 @@ export class BinderView {
         }
         const pocket = target.closest(".pocket[data-set]");
         if (pocket) {
-            const set = CONFIG.SETS.find((s) => s.id === pocket.dataset.set);
-            this.close();
-            this.deckManager.showCard(set, Number(pocket.dataset.index));
+            this.peek(pocket);
             return true;
         }
         return false;
+    }
+
+    /* ---------- A card out of its pocket ---------- */
+
+    bindPeek() {
+        this.peekEl.addEventListener("click", (e) => {
+            const action = e.target.closest("[data-peek]")?.dataset.peek;
+            if (action === "deck") this.showInDeck();
+            else if (action === "back" || e.target === this.peekEl) this.putBack();
+        });
+        // The card handles like the front card of the deck: it leans towards the pointer or
+        // the phone's tilt (interactions.js), a tap turns it over, and a throw sends it away,
+        // back to the binder. Its links and buttons keep their own click, unless dragged.
+        this.peekSlot.addEventListener("pointerdown", (e) => this.onPeekDown(e));
+        this.peekSlot.addEventListener("pointermove", (e) => this.onPeekMove(e));
+        this.peekSlot.addEventListener("pointerup", (e) => this.onPeekUp(e));
+        this.peekSlot.addEventListener("pointercancel", () => this.onPeekUp(null));
+    }
+
+    onPeekDown(e) {
+        const card = this.peeking?.card;
+        if (!card || this.peeking.leaving || this.peekDrag?.moving) return;
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        const control = pressedControl(e);
+        this.peekDrag = {
+            control,
+            pointerId: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            dx: 0,
+            dy: 0,
+            t: e.timeStamp,
+            vx: 0,
+            vy: 0,
+            moving: false,
+        };
+        if (!control) card.setPointerCapture(e.pointerId);
+    }
+
+    onPeekMove(e) {
+        const drag = this.peekDrag;
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        const card = this.peeking.card;
+        if (!drag.moving) {
+            const moved = Math.hypot(e.clientX - drag.x, e.clientY - drag.y);
+            if (moved < CONFIG.DRAG_START_DISTANCE) return;
+            drag.moving = true;
+            if (drag.control) grabFromControl(card, drag.pointerId);
+            // Held: the light stops following the pointer.
+            this.deckManager.isDragging = true;
+            card.classList.add("is-dragging");
+            card.style.setProperty("--glare-opacity", "0");
+        }
+        card.style.transform = followPointer(drag, e);
+    }
+
+    /** @param {PointerEvent|null} e Null when the browser took the pointer away. */
+    onPeekUp(e) {
+        const drag = this.peekDrag;
+        if (!drag || (e && e.pointerId !== drag.pointerId)) return;
+        this.peekDrag = null;
+        const card = this.peeking?.card;
+        if (!card) return;
+        if (!drag.moving) {
+            if (e && card.hasBack && !drag.control) card.toggleFlip();
+            return;
+        }
+        this.deckManager.isDragging = false;
+        card.classList.remove("is-dragging");
+        if (e && isThrow(drag, e.timeStamp)) this.throwPeek(drag.dx, drag.dy);
+        else card.style.transform = "";
+    }
+
+    /** Thrown away: the card flies off screen, and the binder shows again, the card in its pocket. */
+    async throwPeek(dx, dy) {
+        const peeking = this.peeking;
+        peeking.leaving = true;
+        this.deckManager.peekCard = null;
+        this.peekEl.classList.add("is-leaving");
+        const { card, pocket } = peeking;
+        if (!Utils.prefersReducedMotion()) {
+            const dist = Math.hypot(dx, dy) || 1;
+            const reach = Math.hypot(window.innerWidth, window.innerHeight);
+            const away = `translate3d(${(dx / dist) * reach}px, ${(dy / dist) * reach}px, 0) rotate(${(dx / dist) * 30}deg)`;
+            await card
+                .animate([{ transform: card.style.transform || "none" }, { transform: away }], {
+                    duration: THROW_FLIGHT,
+                    easing: "cubic-bezier(.3,.6,.4,1)",
+                    fill: "forwards",
+                })
+                .finished.catch(() => {});
+        }
+        if (this.peeking !== peeking) return;
+        this.dropPeek();
+        pocket.focus({ preventScroll: true });
+        // The pocket takes its card back with a little bounce, so the eye finds it.
+        if (!Utils.prefersReducedMotion()) {
+            pocket.animate([{ transform: "scale(1.08)" }, { transform: "none" }], {
+                duration: POCKET_BOUNCE,
+                easing: "cubic-bezier(.3,1.5,.5,1)",
+            });
+        }
+    }
+
+    /** Take the card of `pocket` out: it flies up to the middle of the screen, full size. */
+    peek(pocket) {
+        if (this.peeking) return;
+        const set = CONFIG.SETS.find((s) => s.id === pocket.dataset.set);
+        const index = Number(pocket.dataset.index);
+        const card = document.createElement("tcg-card");
+        // The front card of its own little deck: it gets the hover effects of one.
+        card.dataset.pos = "0";
+        card.data = setCards(set)[index];
+        this.peekSlot.replaceChildren(card);
+        const peeking = { pocket, set, index, card };
+        this.peeking = peeking;
+
+        this.peekEl.hidden = false;
+        this.stage.inert = true;
+        this.nav.inert = true;
+        pocket.classList.add("is-out");
+        this.peekEl.querySelector('[data-peek="deck"]').focus({ preventScroll: true });
+        // Once it has landed, it answers the pointer and the gyroscope like the front card.
+        this.flyPeek(pocket, false).then(() => {
+            if (this.peeking === peeking && !peeking.leaving) this.deckManager.peekCard = card;
+        });
+    }
+
+    /** The card goes back into its pocket. */
+    async putBack() {
+        const peeking = this.peeking;
+        if (!peeking || peeking.leaving) return;
+        peeking.leaving = true;
+        this.deckManager.peekCard = null;
+        resetTilt(peeking.card);
+        await this.flyPeek(peeking.pocket, true);
+        if (this.peeking !== peeking) return;
+        this.dropPeek();
+        peeking.pocket.focus({ preventScroll: true });
+    }
+
+    showInDeck() {
+        const { set, index } = this.peeking;
+        this.close();
+        this.deckManager.showCard(set, index);
+    }
+
+    /** Hide the card out of its pocket at once, if any. */
+    dropPeek() {
+        if (!this.peeking) return;
+        this.peeking.pocket.classList.remove("is-out");
+        this.peeking = null;
+        this.peekDrag = null;
+        this.deckManager.peekCard = null;
+        this.deckManager.isDragging = false;
+        this.peekEl.hidden = true;
+        this.peekEl.classList.remove("is-leaving");
+        this.peekSlot.getAnimations().forEach((anim) => anim.cancel());
+        this.peekSlot.replaceChildren();
+        this.stage.inert = false;
+        this.nav.inert = false;
+    }
+
+    /** Fly the card between its pocket and the middle of the screen. */
+    flyPeek(pocket, back) {
+        this.peekEl.classList.toggle("is-leaving", back);
+        if (Utils.prefersReducedMotion()) return Promise.resolve();
+        const from = pocket.getBoundingClientRect();
+        const to = this.peekSlot.getBoundingClientRect();
+        const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+        const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+        const inPocket = `translate(${dx}px, ${dy}px) scale(${from.width / to.width})`;
+        // Out: pulled up out of the sleeve with a slight swing, then settling flat. Back: a
+        // little lift first, then it heads for the pocket at once and slows as it slides in.
+        const frames = back
+            ? [
+                  { transform: "none" },
+                  { transform: "translateY(-2%) rotate(2deg) scale(1.03)", offset: 0.15 },
+                  { transform: inPocket },
+              ]
+            : [
+                  { transform: inPocket },
+                  { transform: "translateY(-3%) rotate(-2deg) scale(1.03)", offset: 0.7 },
+                  { transform: "none" },
+              ];
+        return this.peekSlot
+            .animate(frames, {
+                duration: PEEK_FLIGHT,
+                easing: back ? "cubic-bezier(.45,.05,.3,1)" : "cubic-bezier(.2,.8,.25,1)",
+                fill: "forwards",
+            })
+            .finished.then(
+                (anim) => back || anim.cancel(),
+                () => {}
+            );
     }
 }

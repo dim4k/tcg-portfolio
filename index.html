@@ -390,7 +390,8 @@
             .pack-slot.is-target {
                 --w: var(--pack-w);
             }
-            .booster[data-phase="focus"] .pack-slot:not(.is-target) {
+            .booster[data-phase="focus"] .pack-slot:not(.is-target),
+            .booster[data-phase="reveal"] .pack-slot:not(.is-target) {
                 opacity: 0;
                 visibility: hidden;
                 transform: translate(-50%, -50%) scale(0.5);
@@ -688,10 +689,6 @@
             #app-loader.is-cut .booster-skip {
                 animation: fade-out 0.25s ease forwards;
             }
-            /* Reveal: the backdrop clears while the halves fall and the cards burst out. */
-            #app-loader.is-revealing::before {
-                opacity: 0;
-            }
 
             @keyframes pack-float {
                 50% {
@@ -820,6 +817,12 @@
                 <span class="toolbar-label">Collection</span>
                 <b class="collection-badge" id="collection-badge" hidden></b>
             </button>
+            <!-- Binder view only: the boosters still sealed, a click opens one (binder-view.js) -->
+            <button id="binder-boosters" class="view-toggle-btn booster-btn" type="button" hidden>
+                <span class="booster-btn-packs"></span>
+                <span class="toolbar-label">Boosters</span>
+                <b class="collection-badge"></b>
+            </button>
             <button
                 id="view-toggle-btn"
                 class="view-toggle-btn"
@@ -903,7 +906,6 @@
                 <div class="binder-backing"></div>
                 <!-- Leaves built by binder-view.js on open -->
                 <div class="binder-book" id="binder-book"></div>
-                <div class="binder-rings" aria-hidden="true"><i></i><i></i><i></i></div>
                 <div class="binder-tabs" id="binder-tabs" role="group" aria-label="Sets"></div>
             </div>
             <nav class="binder-nav" aria-label="Pages">
@@ -915,6 +917,14 @@
                     <i data-icon="chevron-right"></i>
                 </button>
             </nav>
+            <!-- A card taken out of its pocket, filled by binder-view.js -->
+            <div class="binder-peek" id="binder-peek" role="dialog" aria-modal="true" aria-label="Card" hidden>
+                <div class="binder-peek-card" id="binder-peek-card"></div>
+                <div class="binder-peek-actions">
+                    <button type="button" data-peek="back">Put back</button>
+                    <button type="button" data-peek="deck" class="is-primary">Show in deck</button>
+                </div>
+            </div>
         </section>
 
         <!-- Single ES-module entry point (native browser modules) -->

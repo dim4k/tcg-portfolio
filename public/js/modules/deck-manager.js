@@ -4,28 +4,14 @@ import { SwirlBackground } from "./swirl-background.js";
 import { CardRenderer, setCards } from "./card-renderer.js";
 import { Collection } from "./collection.js";
 
-// Booster intro (playIntro): flight of one card out of the pack, delay between two cards,
-// pause on the fan, then the snap back into the stack.
-const INTRO_FLIGHT = 1050;
-const INTRO_STAGGER = 85;
-const INTRO_FAN_HOLD = 900;
-const INTRO_GATHER = 520;
-// Gap between two fanned cards, as a share of the card width.
-const INTRO_FAN_STEP = 0.42;
-const INTRO_FAN_STEP_MOBILE = 0.22;
-// Height the cards fly up to, as a share of the viewport height.
-const INTRO_PEAK = 0.14;
-// Tilt (deg) a card leaves the pack with, alternating sides. A full spin reads as a card
-// turning in place: the cards are nearly as big as the pack they come out of.
-const INTRO_KICK = 30;
-
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export class DeckManager {
     constructor() {
         this.isAnimating = false;
         this.isDragging = false;
         this.isBinderOpen = false;
+        // A card taken out of a binder pocket: while set, it follows the pointer and the
+        // gyroscope instead of the front card (interactions.js).
+        this.peekCard = null;
         this.swirlBackground = null;
         this.body = document.body;
         this.cards = [];
@@ -175,22 +161,36 @@ export class DeckManager {
         }
     }
 
-    /** Page background behind `card`: its theme colour, or a dark shade of its brand hue. */
+    /**
+     * Page background behind `card`: the colour of its rarity for a rare or gold card, else its
+     * theme colour, or a dark shade of its brand hue.
+     */
     updateBackground(card) {
         const theme = card.getAttribute("theme");
+        const rarity = card.getAttribute("rarity");
         const brand = card.data?.brand;
+        // Colours live in :root so CSS and JS cannot drift apart.
+        const styles = getComputedStyle(document.documentElement);
 
-        if (!theme && brand) {
+        if (rarity) {
+            this.body.style.backgroundColor = styles.getPropertyValue(`--bg-${rarity}`).trim();
+        } else if (!theme && brand) {
             this.body.style.backgroundColor = `color-mix(in srgb, ${brand} 22%, #050505)`;
         } else {
-            // Colours live in :root so CSS and JS cannot drift apart.
-            const styles = getComputedStyle(document.documentElement);
             this.body.style.backgroundColor =
                 styles.getPropertyValue(`--bg-${theme}`).trim() ||
                 styles.getPropertyValue("--bg-default").trim();
         }
 
-        this.swirlBackground?.setTheme(theme || "default");
+        // The rarity also lights the room (base.css) and colours the swirl.
+        if (rarity) this.body.dataset.rarity = rarity;
+        else delete this.body.dataset.rarity;
+        this.swirlBackground?.setTheme(this.backgroundTheme(card));
+    }
+
+    /** Swirl colours for `card`: its rarity's, else its theme's. */
+    backgroundTheme(card) {
+        return card?.getAttribute("rarity") || card?.getAttribute("theme") || "default";
     }
 
     /**
@@ -278,71 +278,6 @@ export class DeckManager {
     }
 
     /**
-     * Booster intro: the cards burst out of the pack at `origin` (viewport coordinates), spin
-     * up, land fanned out, then snap into the stack.
-     * @param {{x: number, y: number}} [origin] Where the pack was cut. Defaults to the deck.
-     * @param {HTMLElement[]} [cards] The cards that were in the pack, in deck order.
-     * @returns {Promise<void>} Resolves once the stack is whole and usable.
-     */
-    async playIntro(origin, cards = this.cards) {
-        if (Utils.prefersReducedMotion() || !cards.length) return;
-
-        const deck = this.deckContainer;
-        const box = deck.getBoundingClientRect();
-        const ox = origin ? origin.x - (box.left + box.width / 2) : 0;
-        const oy = origin ? origin.y - (box.top + box.height / 2) : 0;
-        const step =
-            box.width * (Utils.isMobile() ? INTRO_FAN_STEP_MOBILE : INTRO_FAN_STEP);
-        const peak = -window.innerHeight * INTRO_PEAK;
-
-        this.isAnimating = true;
-
-        const flights = cards.map((card, i) => {
-            card.classList.add("intro-flying");
-            // Front card in the middle, the others alternating left and right of it.
-            const side = i === 0 ? 0 : (i % 2 ? -1 : 1) * Math.ceil(i / 2);
-            const lift = Math.abs(side) * 22 - window.innerHeight * 0.03;
-            const depth = Math.abs(side) * -40;
-            const at = (x, y, rotate, scale = 1) =>
-                `translate3d(${x}px, ${y}px, ${depth}px) rotate(${rotate}deg) scale(${scale})`;
-            const kick = (i % 2 ? 1 : -1) * INTRO_KICK;
-            const fan = at(side * step, lift, side * 8);
-
-            const flight = card.animate(
-                [
-                    { transform: at(ox, oy, kick, 0.25), opacity: 0, easing: "cubic-bezier(.15,.75,.35,1)" },
-                    { transform: at(side * step * 0.7, peak, side * 4 - kick * 0.4, 0.92), opacity: 1, offset: 0.42, easing: "cubic-bezier(.5,0,.75,.55)" },
-                    { transform: at(side * step * 1.06, lift + 14, side * 10, 1.03), opacity: 1, offset: 0.8, easing: "cubic-bezier(.3,1.3,.5,1)" },
-                    { transform: fan, opacity: 1 },
-                ],
-                { duration: INTRO_FLIGHT, delay: i * INTRO_STAGGER, fill: "both" }
-            );
-            return { card, fan, flight };
-        });
-
-        await Promise.all(flights.map(({ flight }) => flight.finished));
-        flights.forEach(({ card }, i) => setTimeout(() => card.playShine(), i * 70));
-        await wait(INTRO_FAN_HOLD);
-
-        // Back into the stack. A lone keyframe at offset 0 runs from the fan to whatever the
-        // stylesheet says, so each card lands on its own rank. Without the explicit offset it
-        // would be the end keyframe, and the cards would fly from the stack out to the fan.
-        flights.forEach(({ card }) => card.classList.remove("intro-flying"));
-        const last = flights.length - 1;
-        const gathers = flights.map(({ card, fan }, i) =>
-            card.animate([{ transform: fan, opacity: 1, filter: "brightness(1)", offset: 0 }], {
-                duration: INTRO_GATHER,
-                delay: (last - i) * 45,
-                easing: "cubic-bezier(.6,0,.3,1)",
-                fill: "backwards",
-            })
-        );
-        flights.forEach(({ flight }) => flight.cancel());
-        await Promise.all(gathers.map((gather) => gather.finished));
-        this.isAnimating = false;
-    }
-
-    /**
      * transitionend never arrives under reduced motion or in a background tab, so the
      * fallback timer is what actually guarantees the deck never gets stuck.
      */
@@ -382,9 +317,7 @@ export class DeckManager {
 
         if (wanted && !this.swirlBackground) {
             this.swirlBackground = SwirlBackground.create("canvas-background");
-            this.swirlBackground?.setTheme(
-                this.cards[0]?.getAttribute("theme") || "default"
-            );
+            this.swirlBackground?.setTheme(this.backgroundTheme(this.cards[0]));
         }
 
         if (!this.swirlBackground) return;

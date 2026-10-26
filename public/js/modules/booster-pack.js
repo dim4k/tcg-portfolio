@@ -33,10 +33,24 @@ function nameSize(name) {
     return Math.min(15, 80 / (longest * 0.85)).toFixed(1);
 }
 
+/** What the pack promises, from the rarities of its cards: "1 gold + 2 rares". */
+function rarityLine(cards) {
+    const parts = Object.entries(CONFIG.RARITIES)
+        .map(([key, rarity]) => {
+            const n = cards.filter((card) => card.rarity === key).length;
+            const label = rarity.label.toLowerCase();
+            return n ? `${n} ${label}${n > 1 && key !== "gold" ? "s" : ""}` : "";
+        })
+        .filter(Boolean)
+        .reverse();
+    return parts.length ? parts.join(" + ") : "All common";
+}
+
 /** Inside of a pack (wrapper strip and printed body), for any set of CONFIG.SETS. */
 export function packMarkup(set) {
     const series = String(CONFIG.SETS.indexOf(set) + 1).padStart(2, "0");
-    const count = setCards(set).length;
+    const cards = setCards(set);
+    const count = cards.length;
     return `
         <span class="pack-strip"></span>
         <span class="pack-body">
@@ -47,7 +61,7 @@ export function packMarkup(set) {
                 <span class="pack-name" style="font-size: ${nameSize(set.name)}cqw">${set.name.split(" ").join("<br />")}</span>
                 <span class="pack-foot">
                     <span class="pack-stamp">1st<br />Ed.</span>
-                    <span class="pack-info">${count} cards<br />1 holo inside</span>
+                    <span class="pack-info">${count} cards<br />${rarityLine(cards)}</span>
                     <span class="pack-bar"></span>
                 </span>
             </span>

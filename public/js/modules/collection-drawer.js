@@ -7,7 +7,8 @@ import { Collection } from "./collection.js";
  * The collection drawer, opened from the toolbar: one tile per set of CONFIG.SETS, with its
  * pack and how many of its cards are owned. An opened set narrows the deck to its cards; a
  * sealed one opens its booster. The toolbar button names the set the deck is narrowed to and
- * counts the boosters still sealed.
+ * counts the boosters still sealed; while a booster is revealed, it counts the cards it
+ * catches instead.
  */
 export class CollectionDrawer {
     constructor(deckManager) {
@@ -33,6 +34,7 @@ export class CollectionDrawer {
         });
         this.bindReset();
         document.addEventListener("deck-cards-change", () => this.syncButton());
+        document.addEventListener("collection-catch", (e) => this.catchCard(e.detail.count));
         this.syncButton();
     }
 
@@ -73,8 +75,20 @@ export class CollectionDrawer {
         }
     }
 
+    /** A card of the booster being revealed flew in: the button gives, the badge counts it. */
+    catchCard(count) {
+        this.badge.hidden = false;
+        this.badge.textContent = `+${count}`;
+        [this.badge, this.button].forEach((el) => el.classList.remove("is-incoming", "is-catching"));
+        void this.button.offsetWidth;
+        this.badge.classList.add("is-incoming");
+        this.button.classList.add("is-catching");
+    }
+
     syncButton() {
         const deck = this.deckManager;
+        this.badge.classList.remove("is-incoming");
+        this.button.classList.remove("is-catching");
         const sealed = CONFIG.SETS.length - deck.opened.length;
         this.badge.hidden = sealed === 0 || deck.opened.length === 0;
         this.badge.textContent = sealed;

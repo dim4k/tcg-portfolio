@@ -49,6 +49,7 @@ export function setCards(set) {
             setId: set.id,
             slug: project.slug,
             brand: project.brand,
+            rarity: project.rarity,
             header: {
                 stage: set.name,
                 name: project.label,

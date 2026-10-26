@@ -21,3 +21,16 @@ Sources for the card images in this folder.
 
 - projects/tcg-portfolio.jpg
   Cropped from og-image.png in this folder.
+
+- off-the-clock/cycling.jpg, photography.jpg
+  Photos by the author.
+
+- off-the-clock/cinema.jpg
+  "red cinema chair"
+  Felix Mooneeram (@felixmooneeram) — https://unsplash.com/photos/evlkOfkQ5rE
+  Unsplash License.
+
+- off-the-clock/follow.jpg
+  "Digital camera mounted on a bicycle's front fork"
+  Berciu Emanuel (@berciuemanuel2001) — https://unsplash.com/photos/yxn7RTqv1a8
+  Unsplash License.
