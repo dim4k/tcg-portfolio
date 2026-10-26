@@ -1,4 +1,5 @@
 import { CONFIG } from "../config.js";
+import { t } from "../i18n.js";
 
 // How long the bubble naming the card stays up after a drag or a tap on the track.
 const TIP_LINGER = 900;
@@ -75,10 +76,13 @@ export class DeckNav {
         this.tip.querySelector("b").textContent = card.header.name;
         this.tip.querySelector("small").textContent = card.setLabel;
         this.scrub.setAttribute("aria-valuenow", index + 1);
-        this.scrub.setAttribute("aria-valuetext", `${card.header.name}, ${index + 1} of ${total}`);
+        this.scrub.setAttribute(
+            "aria-valuetext",
+            t("nav.valueText", { name: card.header.name, i: index + 1, n: total })
+        );
 
         if (initial || !this.status) return;
-        this.status.textContent = `Card ${index + 1} of ${total}: ${card.header.name}`;
+        this.status.textContent = t("nav.status", { name: card.header.name, i: index + 1, n: total });
     }
 
     bindScrub() {

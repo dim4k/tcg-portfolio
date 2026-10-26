@@ -8,7 +8,10 @@ import { BinderView } from "./modules/binder-view.js";
 import { BoosterIntro } from "./modules/booster-intro.js";
 import { CollectionDrawer } from "./modules/collection-drawer.js";
 import { Collection } from "./modules/collection.js";
+import { SeenTracker } from "./modules/seen-tracker.js";
+import { GestureHint } from "./modules/gesture-hint.js";
 import { icon } from "./modules/icons.js";
+import { lang, setLang, translatePage } from "./i18n.js";
 import "./components/tcg-card.js";
 
 const LOADER_MIN_DISPLAY = 400;
@@ -33,8 +36,9 @@ function heroImageReady() {
 }
 
 // The loader stays in the page, hidden: a booster left sealed opens in it later.
-function hideLoader(loader) {
+function hideLoader(loader, deckManager) {
     loader.classList.add("is-hidden");
+    deckManager.setCovered(false);
     setTimeout(
         () => loader.querySelector(".skeleton-card")?.remove(),
         LOADER_FADE + 200
@@ -42,23 +46,31 @@ function hideLoader(loader) {
 }
 
 /** Skeleton loader (return visits, reduced motion, deep links): gone once the hero is ready. */
-function hideSkeletonWhenReady(loader) {
+function hideSkeletonWhenReady(loader, deckManager) {
     const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
     return Promise.all([
         timeout(LOADER_MIN_DISPLAY),
         Promise.race([heroImageReady(), timeout(LOADER_MAX_WAIT)]),
-    ]).then(() => hideLoader(loader));
+    ]).then(() => hideLoader(loader, deckManager));
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     // Tells the inline safety net in index.html that the app took over the loader.
     document.documentElement.dataset.app = "ready";
 
-    // 0. Swap the static icon placeholders for their inline SVG
+    // 0. Swap the static icon placeholders for their inline SVG, put the markup in the
+    // visitor's language, and offer the other one.
     document.querySelectorAll("[data-icon]").forEach((placeholder) => {
         placeholder.replaceWith(icon(placeholder.dataset.icon));
     });
+    translatePage();
+    // The toolbar's, and the lobby's on a first visit.
+    document.querySelectorAll("#lang-btn, #booster-lang").forEach((btn) =>
+        btn.addEventListener("click", () => setLang(lang === "fr" ? "en" : "fr"))
+    );
+    // Before anything reads it: on a first visit, every set is known already.
+    Collection.initKnown();
 
     // 1-2. Deal the collection: the sets opened this session, plus the set of a card a deep
     // link points at. Without either (reduced motion), the first set; while the booster intro
@@ -77,6 +89,8 @@ document.addEventListener("DOMContentLoaded", () => {
     new CollectionDrawer(deckManager);
     new DeepLink(deckManager);
     new BinderView(deckManager);
+    new SeenTracker(deckManager);
+    const gestureHint = new GestureHint(deckManager);
 
     // The holo foil only shows under a moving light, so each new front card gets one sweep.
     const shine = (card) => setTimeout(() => card.playShine(), CONFIG.SHINE_DELAY);
@@ -86,9 +100,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const loader = document.getElementById("app-loader");
     if (!loader) return;
 
+    // The swirl waits under the opaque loader: drawn there, nobody would see it.
+    deckManager.setCovered(true);
+
     const booster = new BoosterIntro(deckManager, loader);
     const ready = BoosterIntro.isPending()
         ? booster.run()
-        : hideSkeletonWhenReady(loader);
-    ready.then(() => shine(deckManager.cards[0]));
+        : hideSkeletonWhenReady(loader, deckManager);
+    ready.then(() => {
+        shine(deckManager.cards[0]);
+        // Once the light has swept the card, a word on how to handle it (first visit only).
+        setTimeout(() => gestureHint.show(), CONFIG.SHINE_DELAY + 900);
+    });
 });

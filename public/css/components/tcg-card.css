@@ -119,6 +119,7 @@ svg {
 .rare-foil,
 .rare-glitter,
 .gold-etch,
+.secret-prism,
 .twinkles,
 .glare,
 .glitter-layer,
@@ -254,6 +255,52 @@ svg {
 
 :host([no-image]) .card-image-container {
     display: none;
+}
+
+/* Not looked at yet (the "unseen" attribute, deck-manager.js): a tag over the picture. It
+   pops in when the card comes to the front, and off once it counts as seen (dismissNew). */
+.new-badge {
+    display: none;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 1;
+    padding: 7px 13px;
+    border-radius: 99px;
+    background: #ffcf6b;
+    color: #24170a;
+    font: 700 13px/1 "Poppins", sans-serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+    transform: rotate(-4deg);
+    pointer-events: none;
+}
+
+/* On the front card only: shown on the card waiting behind, it would show up as the front one
+   flies off, then appear a second time once its card is in front. It fades in once the card
+   has landed, barely growing; the way out (dismissNew) only shrinks and fades. */
+:host([unseen][data-pos="0"]:not([thumbnail])) .new-badge {
+    display: block;
+    animation: new-badge-in 0.45s ease-out 0.12s both;
+}
+
+@keyframes new-badge-in {
+    from {
+        transform: rotate(-4deg) scale(0.88);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :host([unseen][data-pos="0"]:not([thumbnail])) .new-badge {
+        animation: none;
+    }
+}
+
+/* Only there to offer AVIF and WebP: the image lays out as if it were alone. */
+picture {
+    display: contents;
 }
 
 .card-image {
@@ -704,7 +751,12 @@ svg {
         radial-gradient(circle, var(--accent-light) 1px, transparent 1px);
     background-size: 50px 50px, 70px 70px;
     background-position: 80px 80px, 105px 105px;
-    animation: glitterMove 20s linear infinite;
+}
+
+/* Only the front card's glitter drifts, and in half-pixel steps: smooth, it moved 0.04px per
+   frame, too little to see, yet each frame recomposited every blended layer of the card. */
+:host([data-pos="0"]) .glitter-layer::before {
+    animation: glitterMove 20s steps(100) infinite;
 }
 
 :host([data-pos="0"]:hover) .glitter-layer {
@@ -936,11 +988,12 @@ svg {
 .rare-foil,
 .rare-glitter,
 .gold-etch,
+.secret-prism,
 .twinkles {
     display: none;
 }
 
-/* Rare and gold cards drop the common foil for their own. */
+/* Rare, gold and secret cards drop the common foil for their own. */
 :host([rarity]) .holo-overlay {
     display: none;
 }
@@ -1028,13 +1081,17 @@ svg {
     opacity: calc(0.45 + var(--glare-opacity, 0) * 0.45);
 }
 
-/* At rest, a rare breathes: the light circles slowly over it until someone moves the card. */
+/* At rest, a rare breathes: the light circles slowly over it until someone moves the card.
+   Stepped at 20 updates a second (steps() counts per keyframe interval, 5.5s here): each one
+   repaints the foil and recomposites the card, and a light this slow looks the same as at the
+   display's 60 to 144. */
 :host([rarity="rare"][data-pos="0"]:not(:hover)) .rare-foil {
-    animation: rare-breathe-foil 11s ease-in-out infinite alternate;
+    animation: rare-breathe-foil 11s steps(110) infinite alternate;
 }
 
-:host([rarity="rare"][data-pos="0"]:not(:hover)) .rare-glitter {
-    animation: rare-breathe-glitter 11s ease-in-out infinite alternate;
+:host([rarity="rare"][data-pos="0"]:not(:hover)) .rare-glitter,
+:host([rarity="secret"][data-pos="0"]:not(:hover)) .secret-prism {
+    animation: rare-breathe-glitter 11s steps(110) infinite alternate;
 }
 
 @keyframes rare-breathe-foil {
@@ -1125,7 +1182,8 @@ svg {
 
 /* At rest, a gold sparkles: little four-point stars come and go. No blend mode on them:
    animated over the card's blended foil, it would repaint the whole stack on every frame. */
-:host([rarity="gold"]) .twinkles {
+:host([rarity="gold"]) .twinkles,
+:host([rarity="secret"]) .twinkles {
     display: block;
     z-index: var(--z-shine);
     overflow: hidden;
@@ -1139,7 +1197,9 @@ svg {
     background: radial-gradient(closest-side, #fff8dc, rgba(255, 220, 140, 0) 70%);
     clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%);
     scale: 0;
-    animation: twinkle 3s ease-in-out infinite;
+    /* Six frames per keyframe interval, about 20 a second while a star flashes: every frame
+       recomposites the whole card. */
+    animation: twinkle 3s steps(6) infinite;
 }
 
 .twinkles i:nth-child(1) { left: 18%; top: 12%; animation-delay: -0.2s; }
@@ -1167,21 +1227,136 @@ svg {
     }
 }
 
+/* Secret rare (★★★): a night sky. Stars printed on an obsidian face under nebulae that drift
+   with the light, a prism of fine lines lit where the light falls, a chrome frame whose rainbow
+   turns on its own, the name in prismatic foil, and a halo around the card. */
+:host([rarity="secret"]) .face {
+    box-shadow: 0 0 0 1px rgba(230, 220, 255, 0.35), 0 0 22px rgba(170, 140, 255, 0.5),
+        0 0 50px rgba(90, 200, 255, 0.22), 0 15px 35px rgba(0, 0, 0, 0.5);
+}
+
+/* The stars stay put; the nebulae move a little against the light, like depth. */
+:host([rarity="secret"]) .card-inner,
+:host([rarity="secret"]) .back-inner {
+    background: radial-gradient(circle at 30% 40%, #fff 0 0.8px, transparent 1.4px) 0 0 / 47px 53px,
+        radial-gradient(circle at 70% 20%, rgba(220, 225, 255, 0.85) 0 0.6px, transparent 1.2px) 0 0 /
+            61px 41px,
+        radial-gradient(circle at 15% 80%, rgba(255, 235, 250, 0.7) 0 1px, transparent 1.6px) 0 0 /
+            83px 97px,
+        radial-gradient(
+                ellipse 70% 45% at calc(10% + var(--mx, 50%) * 0.3) calc(15% + var(--my, 50%) * 0.2),
+                rgba(140, 80, 255, 0.45),
+                transparent
+            )
+            no-repeat,
+        radial-gradient(
+                ellipse 60% 50% at calc(95% - var(--mx, 50%) * 0.3) calc(75% - var(--my, 50%) * 0.2),
+                rgba(40, 190, 230, 0.32),
+                transparent
+            )
+            no-repeat,
+        radial-gradient(ellipse 50% 35% at 70% 40%, rgba(230, 70, 170, 0.22), transparent) no-repeat,
+        linear-gradient(160deg, #0b0a14, #17122a 55%, #0a0912);
+}
+
+/* Fine prismatic lines, bright only around the light: on a face this dark, colour-dodge
+   would stay black, so they are screened on. */
+:host([rarity="secret"]) .secret-prism {
+    display: block;
+    z-index: var(--z-holo);
+    background: repeating-linear-gradient(
+            115deg,
+            hsl(350, 100%, 72%) 0 1px,
+            hsl(45, 100%, 70%) 1px 2px,
+            hsl(150, 100%, 70%) 2px 3px,
+            hsl(200, 100%, 72%) 3px 4px,
+            hsl(275, 100%, 76%) 4px 5px,
+            transparent 5px 16px
+        )
+        var(--mx, 50%) var(--my, 50%) / 150% 150%;
+    -webkit-mask: radial-gradient(circle, #000 0, rgba(0, 0, 0, 0.25) 12%, transparent 26%)
+        calc(100% - var(--mx, 50%)) calc(100% - var(--my, 50%)) / 200% 200% no-repeat;
+    mask: radial-gradient(circle, #000 0, rgba(0, 0, 0, 0.25) 12%, transparent 26%)
+        calc(100% - var(--mx, 50%)) calc(100% - var(--my, 50%)) / 200% 200% no-repeat;
+    mix-blend-mode: screen;
+    opacity: calc(0.2 + var(--glare-opacity, 0) * 0.4);
+}
+
+/* Chrome under a rainbow that turns: the ring's mask clips the oversized disc turning in it.
+   Stepped at 20 updates a second, like the other finishes at rest. */
+:host([rarity="secret"]) .card-border {
+    background: linear-gradient(135deg, #d8d8e8, #6f6f86 30%, #f4f4ff 50%, #6f6f86 70%, #d8d8e8)
+        var(--mx, 50%) 0 / 250% 100%;
+    filter: none;
+    overflow: hidden;
+}
+
+:host([rarity="secret"]) .card-border::before {
+    content: "";
+    position: absolute;
+    inset: -60%;
+    background: conic-gradient(
+        hsl(350, 100%, 75%),
+        hsl(45, 100%, 72%),
+        hsl(140, 100%, 72%),
+        hsl(195, 100%, 75%),
+        hsl(255, 100%, 78%),
+        hsl(310, 100%, 76%),
+        hsl(350, 100%, 75%)
+    );
+    opacity: 0.7;
+}
+
+:host([rarity="secret"][data-pos="0"]) .card-border::before {
+    animation: secret-turn 8s steps(160) infinite;
+}
+
+@keyframes secret-turn {
+    to {
+        rotate: 1turn;
+    }
+}
+
+:host([rarity="secret"]) .card-name,
+:host([rarity="secret"]) .back-title {
+    background: linear-gradient(100deg, #fff 10%, #ff9ad8 28%, #8fe9ff 46%, #c7a8ff 64%, #fff 82%)
+        var(--mx, 50%) 0 / 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+}
+
+:host([rarity="secret"]) .stage-label {
+    color: #cfc4ff;
+}
+
+:host([rarity="secret"]) .set-number,
+:host([rarity="secret"]) .card-hp {
+    color: #e6dcff;
+}
+
+:host([rarity="secret"]) .twinkles i {
+    background: radial-gradient(closest-side, #ffffff, rgba(200, 210, 255, 0) 70%);
+}
+
 /* Out of sight or in a binder pocket: the finish stays, the animated layers go. */
 :host([data-behind]) .twinkles,
 :host([thumbnail]) .twinkles,
 :host([thumbnail]) .rare-glitter,
-:host([thumbnail]) .gold-etch {
+:host([thumbnail]) .gold-etch,
+:host([thumbnail]) .secret-prism {
     display: none;
 }
 
-:host([thumbnail]) .rare-foil {
+:host([thumbnail]) .rare-foil,
+:host([thumbnail]) .card-border::before {
     animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
     .rare-foil,
     .rare-glitter,
+    .secret-prism,
+    .card-border::before,
     .twinkles i {
         animation: none !important;
     }

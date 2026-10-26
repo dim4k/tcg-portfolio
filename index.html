@@ -5,19 +5,53 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Antoine Kim - Engineering Manager</title>
 
-        <!-- Before any stylesheet, so the first paint already shows the right loader.
-             The boosters show until one is opened this session (key mirrored in
-             CONFIG.BOOSTER_KEY), and never for reduced motion or a link to a specific card. -->
+        <!-- Before any stylesheet, so the first paint already shows the right loader, in the
+             right language.
+             Language: ?lang= in the address, else the visitor's choice (key mirrored in
+             LANG_KEY, i18n.js), else the browser's.
+             Loader: the boosters show until one has ever been opened (key mirrored in
+             CONFIG.BOOSTER_KEY), and never for reduced motion or a link to a specific card.
+             Preloads: the picture of the card the deck will open on, only when it is the
+             first card of CONFIG.SETS (keep in sync), and the packs' font with the boosters. -->
         <script>
             (function () {
-                var opened = false;
+                var root = document.documentElement;
+                var store = {};
                 try {
-                    opened = Boolean(sessionStorage.getItem("tcg-booster-opened"));
-                } catch (e) {}
+                    store.lang = localStorage.getItem("tcg-lang");
+                    store.opened = localStorage.getItem("tcg-booster-opened") || "";
+                } catch (e) {
+                    store.opened = "";
+                }
+
+                var asked = new URLSearchParams(window.location.search).get("lang");
+                var browser = (navigator.languages || [navigator.language || ""])[0] || "";
+                var lang = asked || store.lang || (/^fr\b/i.test(browser) ? "fr" : "en");
+                root.lang = lang === "fr" ? "fr" : "en";
+
                 var calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
                 var deepLink = window.location.hash.length > 1;
-                document.documentElement.dataset.intro =
-                    opened || calm || deepLink ? "skeleton" : "booster";
+                var booster = !store.opened && !calm && !deepLink;
+                root.dataset.intro = booster ? "booster" : "skeleton";
+
+                function preload(href, as, type) {
+                    var link = document.createElement("link");
+                    link.rel = "preload";
+                    link.as = as;
+                    link.href = href;
+                    link.type = type;
+                    if (as === "font") link.crossOrigin = "anonymous";
+                    // The front card's picture is the LCP element.
+                    if (as === "image") link.fetchPriority = "high";
+                    document.head.appendChild(link);
+                }
+                // The deck opens on the first card of the first set opened, in config order; with
+                // none opened (reduced motion), on the first set's.
+                var opened = store.opened.split(",");
+                if (!booster && !deepLink && (!store.opened || opened.indexOf("base") >= 0)) {
+                    preload("public/img/ak.avif", "image", "image/avif");
+                }
+                if (booster) preload("public/fonts/unbounded.woff2", "font", "font/woff2");
             })();
         </script>
 
@@ -36,7 +70,7 @@
             property="og:description"
             content="An interactive trading-card style developer portfolio."
         />
-        <meta property="og:image" content="https://antoine.kim/public/img/og-image.png" />
+        <meta property="og:image" content="https://antoine.kim/public/img/og-image.jpg" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta
@@ -51,7 +85,7 @@
             name="twitter:description"
             content="An interactive trading-card style developer portfolio."
         />
-        <meta name="twitter:image" content="https://antoine.kim/public/img/og-image.png" />
+        <meta name="twitter:image" content="https://antoine.kim/public/img/og-image.jpg" />
 
         <link
             rel="icon"
@@ -70,26 +104,55 @@
             href="public/img/favicon/apple-touch-icon.png"
         />
 
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <!-- Self-hosted fonts (fonts.css). The card titles and buttons are in Poppins 700. -->
         <link
-            rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Lato:wght@400;700&family=Unbounded:wght@700;900&display=swap"
+            rel="preload"
+            as="font"
+            type="font/woff2"
+            href="public/fonts/poppins-700.woff2"
+            crossorigin
         />
 
         <!-- Separate links, not @import: an import chain downloads strictly one file after another. -->
+        <link rel="stylesheet" href="public/css/modules/fonts.css" />
         <link rel="stylesheet" href="public/css/modules/base.css" />
         <link rel="stylesheet" href="public/css/modules/effects.css" />
         <link rel="stylesheet" href="public/css/modules/binder.css" />
         <link rel="stylesheet" href="public/css/modules/responsive.css" />
 
-        <!-- LCP image. The cards are built by JS, so the preload scanner would find it far too late.
-             Must stay in sync with the image of the first card of CONFIG.SETS. -->
+        <!-- The whole module graph, fetched at once: otherwise each module is only found once
+             the one importing it has arrived, four round trips deep. Keep in sync with the
+             imports. The card styles are fetched by tcg-card.js (crossorigin: fetch() sends
+             same-origin requests in cors mode). -->
+        <link rel="modulepreload" href="public/js/main.js" />
+        <link rel="modulepreload" href="public/js/config.js" />
+        <link rel="modulepreload" href="public/js/i18n.js" />
+        <link rel="modulepreload" href="public/js/locales/en.js" />
+        <link rel="modulepreload" href="public/js/locales/fr.js" />
+        <link rel="modulepreload" href="public/js/components/tcg-card.js" />
+        <link rel="modulepreload" href="public/js/modules/binder-view.js" />
+        <link rel="modulepreload" href="public/js/modules/booster-fx.js" />
+        <link rel="modulepreload" href="public/js/modules/booster-intro.js" />
+        <link rel="modulepreload" href="public/js/modules/booster-pack.js" />
+        <link rel="modulepreload" href="public/js/modules/card-drag.js" />
+        <link rel="modulepreload" href="public/js/modules/card-renderer.js" />
+        <link rel="modulepreload" href="public/js/modules/collection-drawer.js" />
+        <link rel="modulepreload" href="public/js/modules/collection.js" />
+        <link rel="modulepreload" href="public/js/modules/deck-manager.js" />
+        <link rel="modulepreload" href="public/js/modules/deck-nav.js" />
+        <link rel="modulepreload" href="public/js/modules/deep-link.js" />
+        <link rel="modulepreload" href="public/js/modules/gesture-hint.js" />
+        <link rel="modulepreload" href="public/js/modules/icons.js" />
+        <link rel="modulepreload" href="public/js/modules/interactions.js" />
+        <link rel="modulepreload" href="public/js/modules/seen-tracker.js" />
+        <link rel="modulepreload" href="public/js/modules/simplex-noise.js" />
+        <link rel="modulepreload" href="public/js/modules/swirl-background.js" />
+        <link rel="modulepreload" href="public/js/modules/utils.js" />
         <link
             rel="preload"
-            as="image"
-            href="public/img/ak.jpg"
-            fetchpriority="high"
+            as="fetch"
+            href="public/css/components/tcg-card.css"
+            crossorigin
         />
 
         <!-- Critical inline styles so the loader shows instantly,
@@ -103,7 +166,10 @@
                 align-items: center;
                 justify-content: center;
                 isolation: isolate;
-                transition: opacity 0.5s ease, visibility 0.5s ease;
+                /* Visible at once when it comes back (a booster opened later): still hidden
+                   for the length of a fade, it could not take focus. --light (the lobby's
+                   spotlight colour) fades here, so everything lit by it follows together. */
+                transition: opacity 0.5s ease, visibility 0s, --light 0.6s ease;
             }
             /* The backdrop lives apart from the loader so it can clear while the booster
                pack is still on screen. */
@@ -123,12 +189,15 @@
                 opacity: 0;
                 visibility: hidden;
                 pointer-events: none;
+                transition: opacity 0.5s ease, visibility 0.5s ease, --light 0.6s ease;
             }
 
-            /* Skeleton card mimics the real card layout */
+            /* Skeleton card mimics the real card layout, at the very size and place of the deck:
+               keep in sync with --card-height and .deck-container (base.css, responsive.css). */
             .skeleton-card {
                 position: relative;
-                height: min(600px, 80vh);
+                height: min(600px, 80vh, calc(100dvh - 224px));
+                margin-bottom: 72px;
                 aspect-ratio: 0.718;
                 border-radius: 24px;
                 padding: 16px;
@@ -262,6 +331,13 @@
                 }
             }
 
+            @media (max-width: 600px) {
+                .skeleton-card {
+                    height: min(550px, calc(100dvh - 190px), calc((100vw - 24px) / 0.718));
+                    margin-bottom: 70px;
+                }
+            }
+
             @media (prefers-reduced-motion: reduce) {
                 .skeleton-card,
                 .skeleton-card::after,
@@ -288,6 +364,7 @@
             /* Hidden between two openings: the idle loops stop. */
             #app-loader.is-hidden .pack-bob,
             #app-loader.is-hidden .pack,
+            #app-loader.is-hidden .booster-hint,
             #app-loader.is-hidden .pack-ghost::before {
                 animation: none;
             }
@@ -318,9 +395,14 @@
 
             .booster {
                 /* The pack being cut. While picking, the packs are laid out on a grid of
-                   --cols by --rows (written by booster-intro.js), each small enough to fit. */
+                   --cols by --rows (written by booster-intro.js), each small enough to fit,
+                   with room under each one for its tagline (--row-gap). On a narrow screen
+                   they are a carousel instead, the middle pack --car-w wide. On the first
+                   visit the title above takes --hero-room of the height. */
                 --cols: 2;
                 --rows: 1;
+                --row-gap: 56px;
+                --hero-room: 0px;
                 --pack-w: min(
                     380px,
                     calc((100dvh - 170px) * 0.68),
@@ -329,8 +411,9 @@
                 --pick-w: min(
                     calc(var(--pack-w) * 0.66),
                     calc((100vw - 32px - (var(--cols) - 1) * 20px) / var(--cols)),
-                    calc((100dvh - 190px - (var(--rows) - 1) * 20px) / var(--rows) * 0.68)
+                    calc((100dvh - 230px - var(--hero-room) - (var(--rows) - 1) * var(--row-gap)) / var(--rows) * 0.68)
                 );
+                --car-w: min(calc(100vw - 140px), calc((100dvh - 280px - var(--hero-room)) * 0.68), 280px);
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -346,7 +429,207 @@
                 letter-spacing: 0.04em;
                 text-align: center;
                 color: rgba(255, 255, 255, 0.85);
-                animation: hint-pulse 2.4s ease-in-out infinite;
+                /* 0.3s intervals: steps(6) is the 50ms grid of the idle loops (pack-float). */
+                animation: hint-pulse 2.4s steps(6) infinite;
+            }
+
+            /* ---------- The lobby, first visit: who this is, a light on the packs ---------- */
+            /* The title: the role, the name, what to do. Only while picking on a first visit:
+               once a pack is picked it grows into the room, and a pack opened later from the
+               dock has the deck behind it already. */
+            .booster-hero {
+                display: none;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                text-align: center;
+            }
+            #app-loader:not(.is-reopen) .booster[data-phase="pick"] {
+                --hero-room: 170px;
+            }
+            #app-loader:not(.is-reopen) .booster[data-phase="pick"] .booster-hero {
+                display: flex;
+            }
+            .booster-role {
+                margin: 0;
+                font: 600 12px/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+                letter-spacing: 0.22em;
+                text-transform: uppercase;
+                color: color-mix(in srgb, var(--light) 85%, #fff);
+            }
+            .booster-name {
+                margin: 0;
+                font: 900 clamp(34px, 5vw, 60px) / 0.95 "Unbounded", "Poppins", system-ui, sans-serif;
+                letter-spacing: -0.02em;
+                text-transform: uppercase;
+                text-wrap: balance;
+            }
+            .booster-lede {
+                margin: 4px 0 0;
+                max-width: 46ch;
+                padding-inline: 16px;
+                text-wrap: balance;
+                font: 400 16px/1.45 "Lato", system-ui, sans-serif;
+                color: rgba(255, 255, 255, 0.7);
+            }
+            /* Under the title, the hint becomes a small caption. */
+            #app-loader:not(.is-reopen) .booster[data-phase="pick"] .booster-hint {
+                margin-top: 6px;
+                font-size: 13px;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.62);
+            }
+            @media (max-width: 600px) {
+                #app-loader:not(.is-reopen) .booster[data-phase="pick"] {
+                    --hero-room: 130px;
+                }
+                .booster-role {
+                    font-size: 10px;
+                }
+                .booster-lede {
+                    font-size: 14px;
+                }
+            }
+
+            /* The other language, before anything else is on screen (i18n.js). */
+            .booster-lang {
+                position: absolute;
+                top: max(24px, env(safe-area-inset-top));
+                right: max(24px, env(safe-area-inset-right));
+                padding: 9px 14px;
+                border-radius: 99px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                background: rgba(255, 255, 255, 0.08);
+                color: #fff;
+                font: 600 13px/1 "Poppins", system-ui, sans-serif;
+                letter-spacing: 0.06em;
+                cursor: pointer;
+            }
+            .booster-lang:focus-visible {
+                outline: 2px solid #fff;
+                outline-offset: 2px;
+            }
+            #app-loader.is-reopen .booster-lang,
+            #app-loader:not([data-phase="pick"]) .booster-lang,
+            html:not([data-intro="booster"]) .booster-lang {
+                display: none;
+            }
+            @media (max-width: 600px) {
+                .booster-lang {
+                    top: max(12px, env(safe-area-inset-top));
+                    right: max(12px, env(safe-area-inset-right));
+                }
+            }
+
+            /* A spotlight on the packs: a beam from above and a pool of light on the floor
+               (--floor, the bottom of the packs, written by booster-intro.js), in the colour of
+               the pack hovered or in the middle of the carousel (--light). */
+            @property --light {
+                syntax: "<color>";
+                inherits: true;
+                initial-value: #ffd77a;
+            }
+            .booster-light {
+                position: absolute;
+                inset: 0;
+                z-index: -1;
+                pointer-events: none;
+                background: radial-gradient(
+                        ellipse 34% 9% at 50% var(--floor, 72%),
+                        color-mix(in srgb, var(--light) 32%, transparent),
+                        transparent 70%
+                    ),
+                    conic-gradient(
+                        from 180deg at 50% -8%,
+                        transparent 164deg,
+                        color-mix(in srgb, var(--light) 17%, transparent) 172deg,
+                        color-mix(in srgb, var(--light) 27%, transparent) 180deg,
+                        color-mix(in srgb, var(--light) 17%, transparent) 188deg,
+                        transparent 196deg
+                    ),
+                    radial-gradient(
+                        ellipse 60% 50% at 50% 45%,
+                        color-mix(in srgb, var(--light) 7%, transparent),
+                        transparent 70%
+                    );
+                transition: opacity 0.5s ease;
+            }
+            /* The reveal has its own lights. */
+            #app-loader:is([data-phase="reveal"], .is-cut) .booster-light {
+                opacity: 0.35;
+            }
+            html:not([data-intro="booster"]) .booster-light {
+                display: none;
+            }
+            @media (max-width: 600px) {
+                .booster-light {
+                    background: radial-gradient(
+                            ellipse 70% 8% at 50% var(--floor, 72%),
+                            color-mix(in srgb, var(--light) 34%, transparent),
+                            transparent 70%
+                        ),
+                        conic-gradient(
+                            from 180deg at 50% -6%,
+                            transparent 150deg,
+                            color-mix(in srgb, var(--light) 17%, transparent) 166deg,
+                            color-mix(in srgb, var(--light) 27%, transparent) 180deg,
+                            color-mix(in srgb, var(--light) 17%, transparent) 194deg,
+                            transparent 210deg
+                        ),
+                        radial-gradient(
+                            ellipse 90% 45% at 50% 48%,
+                            color-mix(in srgb, var(--light) 8%, transparent),
+                            transparent 70%
+                        );
+                }
+            }
+
+            /* Each pack stands on a pool of its own colour, its reflection on the floor below.
+               The reflection only while picking: a picked pack grows, and its halves fly off. */
+            .pack-glow,
+            .pack-mirror {
+                position: absolute;
+                pointer-events: none;
+                display: none;
+            }
+            .booster:is([data-phase="pick"], [data-phase="focus"]) .pack-glow,
+            .booster[data-phase="pick"] .pack-mirror {
+                display: block;
+            }
+            .pack-glow {
+                left: -12%;
+                right: -12%;
+                top: 92%;
+                height: 16%;
+                border-radius: 50%;
+                background: radial-gradient(
+                    closest-side,
+                    color-mix(in srgb, var(--hi) 50%, transparent),
+                    color-mix(in srgb, var(--hi) 12%, transparent) 60%,
+                    transparent
+                );
+                filter: blur(4px);
+            }
+            .pack-mirror {
+                left: 0;
+                right: 0;
+                top: calc(100% + 4px);
+                height: 100%;
+                transform: scaleY(-1);
+                opacity: 0.22;
+                -webkit-mask: linear-gradient(to bottom, transparent 62%, #000 100%);
+                mask: linear-gradient(to bottom, transparent 62%, #000 100%);
+            }
+            /* A still copy: no idle sheen, no shadow, no blended foil to repaint. */
+            .pack-mirror .pack {
+                animation: none;
+                filter: none;
+                cursor: default;
+            }
+            .pack-mirror .pack-foil,
+            .pack-mirror .pack-glare {
+                display: none;
             }
 
             .booster-stage {
@@ -354,11 +637,17 @@
                 width: var(--pack-w);
                 aspect-ratio: 0.68;
             }
-            /* While picking, as big as the grid of packs, so it never runs over the hint. */
+            /* While picking, as big as the grid of packs, so it never runs over the hint, and
+               the last row's taglines never run over the skip link. */
             .booster[data-phase="pick"] .booster-stage {
                 width: calc(var(--cols) * (var(--pick-w) + 20px) - 20px);
-                height: calc(var(--rows) * (var(--pick-w) / 0.68 + 20px) - 20px);
+                height: calc(var(--rows) * (var(--pick-w) / 0.68 + var(--row-gap)) - var(--row-gap));
+                margin-bottom: 30px;
                 aspect-ratio: auto;
+            }
+            .booster[data-phase="pick"][data-layout="carousel"] .booster-stage {
+                width: 100vw;
+                height: calc(var(--car-w) / 0.68);
             }
 
             .pack-slot {
@@ -373,16 +662,85 @@
                 aspect-ratio: 0.68;
                 transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
                     rotate(var(--r));
+                /* Visibility waits for the fade only when a pack goes (--slot-hide): one that
+                   comes back is visible at once, or it could not take focus. */
+                --slot-hide: 0s;
                 transition: width 0.6s cubic-bezier(0.3, 1.2, 0.45, 1),
-                    transform 0.6s cubic-bezier(0.3, 1.2, 0.45, 1), opacity 0.35s ease,
-                    visibility 0.35s;
+                    transform 0.6s cubic-bezier(0.3, 1.2, 0.45, 1),
+                    scale 0.45s cubic-bezier(0.3, 1.2, 0.45, 1), opacity 0.35s ease,
+                    visibility var(--slot-hide);
             }
-            /* Picking: --col and --row place each pack on the grid (booster-intro.js), the
-               packs fanned out a little from the middle column. */
+            /* Picking: --col and --row place each pack on the grid (booster-intro.js), upright:
+               each stands on its pool of light, over its reflection. */
             .booster[data-phase="pick"] .pack-slot {
                 --dx: calc((var(--col, 0) - (var(--cols) - 1) / 2) * (var(--pick-w) + 20px));
-                --dy: calc((var(--row, 0) - (var(--rows) - 1) / 2) * (var(--pick-w) / 0.68 + 20px));
-                --r: calc((var(--col, 0) - (var(--cols) - 1) / 2) * 5deg);
+                --dy: calc((var(--row, 0) - (var(--rows) - 1) / 2) * (var(--pick-w) / 0.68 + var(--row-gap)));
+                --r: 0deg;
+            }
+            /* The carousel: --off is each pack's distance from the middle one
+               (booster-intro.js), the neighbours smaller and dimmer, peeking from the sides. */
+            .booster[data-phase="pick"][data-layout="carousel"] .pack-slot {
+                --w: var(--car-w);
+                --dx: calc(var(--off, 0) * (var(--car-w) * 0.9 + 12px));
+                --dy: 0px;
+                --r: 0deg;
+                scale: 0.8;
+                opacity: 0.55;
+            }
+            .booster[data-phase="pick"][data-layout="carousel"] .pack-slot.is-centre {
+                z-index: 1;
+                scale: 1;
+                opacity: 1;
+            }
+            .booster[data-phase="pick"][data-layout="carousel"] .pack-slot.is-far {
+                --slot-hide: 0.35s;
+                opacity: 0;
+                visibility: hidden;
+            }
+
+            /* What the pack holds, under it while picking. */
+            .pack-tagline {
+                position: absolute;
+                left: 50%;
+                top: calc(100% + 20px);
+                translate: -50% 0;
+                white-space: nowrap;
+                font: 600 13px/1.2 "Poppins", system-ui, sans-serif;
+                letter-spacing: 0.02em;
+                color: color-mix(in oklab, var(--hi) 55%, #fff);
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+            .booster[data-phase="pick"] .pack-tagline {
+                opacity: 1;
+            }
+            .booster[data-phase="pick"][data-layout="carousel"] .pack-slot:not(.is-centre) .pack-tagline {
+                opacity: 0;
+            }
+
+            /* A set added since the visitor's last visit (collection.js). */
+            .new-ribbon {
+                position: absolute;
+                z-index: 2;
+                padding: 5px 9px;
+                border-radius: 99px;
+                background: #ffcf6b;
+                color: #24170a;
+                font: 700 11px/1 "Poppins", system-ui, sans-serif;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                pointer-events: none;
+            }
+            .pack-bob > .new-ribbon {
+                top: 2%;
+                right: -4%;
+                rotate: 8deg;
+                display: none;
+            }
+            .booster[data-phase="pick"] .pack-slot.is-new .new-ribbon {
+                display: block;
             }
             .pack-slot[hidden] {
                 display: none;
@@ -392,6 +750,7 @@
             }
             .booster[data-phase="focus"] .pack-slot:not(.is-target),
             .booster[data-phase="reveal"] .pack-slot:not(.is-target) {
+                --slot-hide: 0.35s;
                 opacity: 0;
                 visibility: hidden;
                 transform: translate(-50%, -50%) scale(0.5);
@@ -400,7 +759,8 @@
             .pack-bob {
                 position: absolute;
                 inset: 0;
-                animation: pack-float 3.6s ease-in-out infinite;
+                /* 0.3s intervals: steps(6) is the 50ms grid of the idle loops (pack-float). */
+                animation: pack-float 3.6s steps(6) infinite;
             }
             .pack-slot:nth-child(even) .pack-bob {
                 animation-delay: -1.8s;
@@ -426,7 +786,8 @@
                 transition: transform 0.25s ease-out;
                 /* Follows the serrated outline, unlike box-shadow. */
                 filter: drop-shadow(0 26px 30px rgba(0, 0, 0, 0.55));
-                animation: pack-sheen 7s ease-in-out infinite alternate;
+                /* 0.7s intervals: steps(14) is the 50ms grid of the idle loops (pack-float). */
+                animation: pack-sheen 7s steps(14) infinite alternate;
             }
             .pack.is-tracking,
             .pack-half {
@@ -690,7 +1051,32 @@
                 animation: fade-out 0.25s ease forwards;
             }
 
+            /* The idle loops (float, sheen, hint) run at 20 frames a second, all on the same
+               50ms grid: every frame repaints the packs and their blurred drop shadows, and
+               these motions are too slow to look any smoother at 60 or 144. steps() counts
+               per keyframe interval and drops the easing, so the easing is sampled into the
+               keyframes instead (a cosine), each interval a multiple of 50ms. */
             @keyframes pack-float {
+                8.333%,
+                91.667% {
+                    translate: 0 -0.67px;
+                }
+                16.667%,
+                83.333% {
+                    translate: 0 -2.5px;
+                }
+                25%,
+                75% {
+                    translate: 0 -5px;
+                }
+                33.333%,
+                66.667% {
+                    translate: 0 -7.5px;
+                }
+                41.667%,
+                58.333% {
+                    translate: 0 -9.33px;
+                }
                 50% {
                     translate: 0 -10px;
                 }
@@ -699,6 +1085,42 @@
                 from {
                     --px: 15%;
                     --py: 10%;
+                }
+                10% {
+                    --px: 16.7%;
+                    --py: 11.5%;
+                }
+                20% {
+                    --px: 21.7%;
+                    --py: 15.7%;
+                }
+                30% {
+                    --px: 29.4%;
+                    --py: 22.4%;
+                }
+                40% {
+                    --px: 39.2%;
+                    --py: 30.7%;
+                }
+                50% {
+                    --px: 50%;
+                    --py: 40%;
+                }
+                60% {
+                    --px: 60.8%;
+                    --py: 49.3%;
+                }
+                70% {
+                    --px: 70.6%;
+                    --py: 57.6%;
+                }
+                80% {
+                    --px: 78.3%;
+                    --py: 64.3%;
+                }
+                90% {
+                    --px: 83.3%;
+                    --py: 68.5%;
                 }
                 to {
                     --px: 85%;
@@ -726,6 +1148,18 @@
                 }
             }
             @keyframes hint-pulse {
+                12.5%,
+                87.5% {
+                    opacity: 0.934;
+                }
+                25%,
+                75% {
+                    opacity: 0.775;
+                }
+                37.5%,
+                62.5% {
+                    opacity: 0.616;
+                }
                 50% {
                     opacity: 0.55;
                 }
@@ -746,17 +1180,37 @@
     </head>
     <body>
         <div id="app-loader">
+            <!-- The lobby's spotlight, and the other language (booster-intro.js, i18n.js) -->
+            <div class="booster-light" aria-hidden="true"></div>
+            <button
+                class="booster-lang"
+                id="booster-lang"
+                type="button"
+                aria-label="Version française"
+                data-i18n="lang.switch"
+                data-i18n-label="lang.label"
+            >
+                FR
+            </button>
             <div class="booster" data-phase="pick">
-                <p class="booster-hint" id="booster-hint" aria-live="polite">Pick a booster</p>
+                <!-- Who this is, on a first visit, before anything is opened -->
+                <header class="booster-hero">
+                    <p class="booster-role" data-i18n="lobby.role">Engineering Manager</p>
+                    <h1 class="booster-name">Antoine Kim</h1>
+                    <p class="booster-lede" data-i18n="lobby.lede">
+                        Open a booster to explore my work, my side projects and life off the clock.
+                    </p>
+                </header>
+                <p class="booster-hint" id="booster-hint" aria-live="polite" data-i18n="booster.pick">Pick a booster</p>
                 <!-- One pack per set of CONFIG.SETS, built by booster-intro.js. Their styles are
                      here, so they show the moment the module runs. -->
                 <div class="booster-stage"></div>
-                <button class="booster-skip" id="booster-skip" type="button">
+                <button class="booster-skip" id="booster-skip" type="button" data-i18n="booster.skipIntro">
                     Skip intro
                 </button>
             </div>
 
-            <div class="skeleton-card" role="status" aria-label="Loading">
+            <div class="skeleton-card" role="status" aria-label="Loading" data-i18n-label="loading">
                 <div class="sk-header">
                     <div class="sk-title-group">
                         <div class="sk sk-line sm"></div>
@@ -814,13 +1268,13 @@
                 aria-controls="collection-drawer"
             >
                 <i data-icon="table-cells-large"></i>
-                <span class="toolbar-label">Collection</span>
+                <span class="toolbar-label" data-i18n="collection.title">Collection</span>
                 <b class="collection-badge" id="collection-badge" hidden></b>
             </button>
             <!-- Binder view only: the boosters still sealed, a click opens one (binder-view.js) -->
             <button id="binder-boosters" class="view-toggle-btn booster-btn" type="button" hidden>
                 <span class="booster-btn-packs"></span>
-                <span class="toolbar-label">Boosters</span>
+                <span class="toolbar-label" data-i18n="collection.boosters">Boosters</span>
                 <b class="collection-badge"></b>
             </button>
             <button
@@ -831,32 +1285,45 @@
                 aria-controls="binder"
             >
                 <i data-icon="book-open"></i>
-                <span class="toolbar-label">Binder</span>
+                <span class="toolbar-label" data-i18n="view.binder">Binder</span>
+            </button>
+            <!-- The other language: the page reloads in it (i18n.js) -->
+            <button
+                id="lang-btn"
+                class="view-toggle-btn lang-btn"
+                type="button"
+                aria-label="Version française"
+                data-i18n="lang.switch"
+                data-i18n-label="lang.label"
+            >
+                FR
             </button>
         </div>
 
         <dialog class="collection-drawer" id="collection-drawer" aria-labelledby="collection-title">
             <header class="collection-head">
                 <div>
-                    <h2 id="collection-title">Collection</h2>
+                    <h2 id="collection-title" data-i18n="collection.title">Collection</h2>
                     <p id="collection-summary"></p>
                 </div>
-                <button class="collection-close" type="button" aria-label="Close">
+                <button class="collection-close" type="button" aria-label="Close" data-i18n-label="collection.close">
                     <i data-icon="xmark"></i>
                 </button>
             </header>
+            <!-- What seeing every card leads to (collection-drawer.js) -->
+            <p class="collection-goal" id="collection-goal"></p>
             <!-- One tile per set, built by collection-drawer.js -->
             <div class="collection-tiles" id="collection-tiles"></div>
             <!-- Back to square one: every booster sealed again. Asks before it does anything. -->
             <footer class="collection-foot">
-                <button class="collection-reset" id="collection-reset" type="button">
+                <button class="collection-reset" id="collection-reset" type="button" data-i18n="collection.reset">
                     Reset collection
                 </button>
                 <div class="collection-confirm" id="collection-confirm" role="alertdialog" aria-labelledby="collection-confirm-text" hidden>
-                    <p id="collection-confirm-text">Seal every booster again and start over?</p>
+                    <p id="collection-confirm-text" data-i18n="collection.resetAsk">Seal every booster again and start over?</p>
                     <div>
-                        <button type="button" data-reset="cancel">Cancel</button>
-                        <button type="button" data-reset="confirm" class="is-danger">Reset</button>
+                        <button type="button" data-reset="cancel" data-i18n="collection.cancel">Cancel</button>
+                        <button type="button" data-reset="confirm" class="is-danger" data-i18n="collection.confirm">Reset</button>
                     </div>
                 </div>
             </footer>
@@ -864,19 +1331,22 @@
 
         <div class="deck-container" id="deck">
             <!-- Cards will be dynamically rendered here by JS -->
+            <!-- How to handle the deck, on a first visit only (gesture-hint.js) -->
+            <p class="deck-hint" id="deck-hint" aria-live="polite" hidden></p>
         </div>
 
-        <nav class="deck-nav" aria-label="Cards">
+        <nav class="deck-nav" aria-label="Deck navigation" data-i18n-label="nav.deck">
             <button
                 class="deck-nav-step"
                 id="deck-prev"
                 type="button"
                 aria-label="Previous card"
+                data-i18n-label="nav.prev"
             >
                 <i data-icon="chevron-left"></i>
             </button>
             <!-- A track cut into one segment per set, dragged to leaf through the deck (deck-nav.js) -->
-            <div class="deck-scrub" id="deck-scrub" role="slider" tabindex="0" aria-label="Cards">
+            <div class="deck-scrub" id="deck-scrub" role="slider" tabindex="0" aria-label="Card position" data-i18n-label="nav.position">
                 <div class="deck-scrub-track" id="deck-scrub-track"></div>
                 <div class="deck-scrub-fill"></div>
                 <div class="deck-scrub-thumb"></div>
@@ -888,6 +1358,7 @@
                 id="deck-next"
                 type="button"
                 aria-label="Next card"
+                data-i18n-label="nav.next"
             >
                 <i data-icon="chevron-right"></i>
             </button>
@@ -897,32 +1368,35 @@
         <button class="booster-dock" id="booster-dock" type="button" hidden>
             <span class="booster-dock-packs"></span>
             <span class="booster-dock-text"><b></b><small></small></span>
-            <span class="booster-dock-cta">Open</span>
+            <span class="booster-dock-cta" data-i18n="dock.cta">Open</span>
+            <span class="new-ribbon" data-i18n="booster.new" aria-hidden="true">New</span>
         </button>
         <p class="sr-only" id="deck-status" aria-live="polite"></p>
+        <!-- Short news, such as the collection unlocking its secret booster (seen-tracker.js) -->
+        <p class="toast" id="toast" role="status" hidden></p>
 
-        <section class="binder" id="binder" aria-label="Binder" tabindex="-1" hidden>
+        <section class="binder" id="binder" aria-label="Binder" data-i18n-label="binder.label" tabindex="-1" hidden>
             <div class="binder-stage">
                 <div class="binder-backing"></div>
                 <!-- Leaves built by binder-view.js on open -->
                 <div class="binder-book" id="binder-book"></div>
-                <div class="binder-tabs" id="binder-tabs" role="group" aria-label="Sets"></div>
+                <div class="binder-tabs" id="binder-tabs" role="group" aria-label="Sets" data-i18n-label="binder.sets"></div>
             </div>
-            <nav class="binder-nav" aria-label="Pages">
-                <button id="binder-prev" type="button" aria-label="Previous page">
+            <nav class="binder-nav" aria-label="Pages" data-i18n-label="binder.pages">
+                <button id="binder-prev" type="button" aria-label="Previous page" data-i18n-label="binder.prevPage">
                     <i data-icon="chevron-left"></i>
                 </button>
                 <span id="binder-page">1 / 1</span>
-                <button id="binder-next" type="button" aria-label="Next page">
+                <button id="binder-next" type="button" aria-label="Next page" data-i18n-label="binder.nextPage">
                     <i data-icon="chevron-right"></i>
                 </button>
             </nav>
             <!-- A card taken out of its pocket, filled by binder-view.js -->
-            <div class="binder-peek" id="binder-peek" role="dialog" aria-modal="true" aria-label="Card" hidden>
+            <div class="binder-peek" id="binder-peek" role="dialog" aria-modal="true" aria-label="Card" data-i18n-label="binder.card" hidden>
                 <div class="binder-peek-card" id="binder-peek-card"></div>
                 <div class="binder-peek-actions">
-                    <button type="button" data-peek="back">Put back</button>
-                    <button type="button" data-peek="deck" class="is-primary">Show in deck</button>
+                    <button type="button" data-peek="back" data-i18n="binder.putBack">Put back</button>
+                    <button type="button" data-peek="deck" class="is-primary" data-i18n="binder.showInDeck">Show in deck</button>
                 </div>
             </div>
         </section>

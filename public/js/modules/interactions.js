@@ -1,7 +1,7 @@
 import { CONFIG } from "../config.js";
 import { Utils } from "./utils.js";
 
-function setCardVars(card, { mx, my, glare }) {
+export function setCardVars(card, { mx, my, glare }) {
     card.style.setProperty("--mx", `${mx}%`);
     card.style.setProperty("--my", `${my}%`);
     card.style.setProperty("--glare-opacity", `${glare}`);
@@ -90,6 +90,7 @@ export class InteractionManager {
 
         this.elements = {
             deckContainer: document.getElementById("deck"),
+            drawer: document.getElementById("collection-drawer"),
         };
 
         this.bindEvents();
@@ -255,7 +256,8 @@ export class InteractionManager {
     }
 
     handleWheel(e) {
-        if (this.isBusy) {
+        // A scroll inside the collection drawer is for the drawer, not the deck behind it.
+        if (this.isBusy || this.elements.drawer?.open) {
             this.wheelAccum = 0;
             return;
         }
@@ -331,22 +333,23 @@ export class InteractionManager {
             typeof DeviceOrientationEvent !== "undefined" &&
             typeof DeviceOrientationEvent.requestPermission === "function"
         ) {
-            document.addEventListener(
-                "touchstart",
-                () => {
-                    DeviceOrientationEvent.requestPermission()
-                        .then((response) => {
-                            if (response === "granted" && this.orientationHandler) {
-                                window.addEventListener(
-                                    "deviceorientation",
-                                    this.orientationHandler
-                                );
-                            }
-                        })
-                        .catch(console.error);
-                },
-                { once: true }
-            );
+            // iOS asks the visitor first, and only from a gesture. The first touch of a visit
+            // is picking and slicing a booster: asked then, the system prompt would cut into
+            // it. So it waits for the first touch on a card, the deck's or one out of the
+            // binder, when tilting is what the visitor is about to discover. touchend: iOS
+            // does not count a touchstart as a gesture.
+            const targets = [this.elements.deckContainer, document.getElementById("binder-peek-card")];
+            const ask = () => {
+                targets.forEach((el) => el?.removeEventListener("touchend", ask));
+                DeviceOrientationEvent.requestPermission()
+                    .then((response) => {
+                        if (response === "granted" && this.orientationHandler) {
+                            window.addEventListener("deviceorientation", this.orientationHandler);
+                        }
+                    })
+                    .catch(console.error);
+            };
+            targets.forEach((el) => el?.addEventListener("touchend", ask));
         } else {
             window.addEventListener(
                 "deviceorientation",

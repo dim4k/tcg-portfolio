@@ -1,6 +1,7 @@
 import { CONFIG } from "../config.js";
 import { Utils } from "../modules/utils.js";
 import { icon } from "../modules/icons.js";
+import { t } from "../i18n.js";
 
 const template = document.createElement("template");
 template.innerHTML = `
@@ -20,8 +21,15 @@ template.innerHTML = `
             </div>
 
             <div class="card-image-container">
-                <!-- Not draggable: a press on the picture must grab the card (card-drag.js). -->
-                <img src="" alt="" class="card-image" draggable="false">
+                <!-- AVIF and WebP copies sit next to each JPEG (see the README). Not draggable:
+                     a press on the picture must grab the card (card-drag.js). -->
+                <picture>
+                    <source type="image/avif">
+                    <source type="image/webp">
+                    <img src="" alt="" class="card-image" draggable="false">
+                </picture>
+                <!-- A card the visitor has not looked at yet (the "unseen" attribute). -->
+                <span class="new-badge" aria-hidden="true"></span>
                 <div class="card-art"></div>
             </div>
 
@@ -57,6 +65,7 @@ template.innerHTML = `
         <div class="rare-foil"></div>
         <div class="rare-glitter"></div>
         <div class="gold-etch"></div>
+        <div class="secret-prism"></div>
         <div class="glare"></div>
         <div class="glitter-layer"></div>
         <div class="twinkles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -120,6 +129,17 @@ const sheetReady = fetch(
     });
 
 const COPIED_RESET = 2000;
+// The "new" badge stays at least this long (ms) after the card comes to the front, even once
+// the card counts as seen: long enough to be noticed.
+const NEW_BADGE_MIN = 2000;
+
+/** The cards to collect, for the secret card's counter: every card of the regular sets. */
+function collectionSize() {
+    return CONFIG.SETS.filter((set) => !set.secret).reduce(
+        (n, set) => n + (set.cards ? set.cards.length : Object.keys(set.projects).length),
+        0
+    );
+}
 
 class TcgCard extends HTMLElement {
     constructor() {
@@ -174,11 +194,13 @@ class TcgCard extends HTMLElement {
     }
 
     static get observedAttributes() {
-        return ["flipped"];
+        return ["flipped", "data-pos"];
     }
 
-    attributeChangedCallback(name) {
+    attributeChangedCallback(name, before, after) {
         if (name === "flipped") this.syncFaces();
+        // When it came to the front: the "new" badge counts its time on screen from there.
+        else if (after === "0" && before !== "0") this.frontSince = performance.now();
     }
 
     set data(data) {
@@ -206,6 +228,7 @@ class TcgCard extends HTMLElement {
         // The pressed button is about to become inert, so hand focus to its twin.
         const hadFocus = this.shadowRoot.activeElement?.matches(".flip-btn");
         this.flipped = !this.flipped;
+        this.dispatchEvent(new CustomEvent("card-flip", { bubbles: true, composed: true }));
         if (hadFocus) {
             const face = this.flipped ? this.faces.back : this.faces.front;
             face.querySelector(".flip-btn").focus();
@@ -217,6 +240,40 @@ class TcgCard extends HTMLElement {
         const flipped = this.flipped;
         this.faces.front.inert = flipped;
         this.faces.back.inert = !flipped;
+    }
+
+    /**
+     * The card has just been looked at: its "new" badge fades away, once it has been on screen
+     * NEW_BADGE_MIN since the card came to the front. Instant under reduced motion.
+     */
+    dismissNew() {
+        if (!this.hasAttribute("unseen") || this.newLeaving) return;
+        this.newLeaving = true;
+        let leave = null;
+        const done = () => {
+            this.newLeaving = false;
+            this.removeAttribute("unseen");
+            // Hidden now: the held end frame can go.
+            leave?.cancel();
+        };
+        if (Utils.prefersReducedMotion()) {
+            done();
+            return;
+        }
+        const shown = performance.now() - (this.frontSince ?? -Infinity);
+        setTimeout(() => {
+            // A single, quiet move out: no growing again after the pop in.
+            leave = this.shadowRoot
+                .querySelector(".new-badge")
+                .animate(
+                    [
+                        { transform: "rotate(-4deg) translateY(0) scale(1)", opacity: 1 },
+                        { transform: "rotate(-4deg) translateY(-6px) scale(0.9)", opacity: 0 },
+                    ],
+                    { duration: 380, easing: "ease-in", fill: "forwards" }
+                );
+            leave.finished.then(done, done);
+        }, Math.max(0, NEW_BADGE_MIN - shown));
     }
 
     /**
@@ -240,16 +297,18 @@ class TcgCard extends HTMLElement {
         const rarity = CONFIG.RARITIES[data.rarity];
         if (rarity) this.setAttribute("rarity", data.rarity);
         else this.removeAttribute("rarity");
+        const rarityName = rarity ? t(`rarity.${data.rarity}`) : null;
         this.setAttribute("data-id", data.id);
         this.setAttribute("role", "group");
         this.setAttribute("aria-roledescription", "card");
         this.setAttribute(
             "aria-label",
-            [data.header.name, data.setLabel, rarity?.label].filter(Boolean).join(", ")
+            [data.header.name, data.setLabel, rarityName].filter(Boolean).join(", ")
         );
 
         this.renderHeader(data);
         this.renderImage(data);
+        this.shadowRoot.querySelector(".new-badge").textContent = t("card.new");
         this.renderBody(data);
         this.renderActions(data);
         this.renderFooter(data);
@@ -276,10 +335,12 @@ class TcgCard extends HTMLElement {
         const hpValueContainer = this.shadowRoot.querySelector(".hp-value");
         if (data.header.hpType === "dynamic-exp") {
             const exp = Utils.calculateYearsSince(CONFIG.CAREER_START_DATE);
-            hpValueContainer.textContent = `${exp}Y`;
+            hpValueContainer.textContent = t("card.years", { n: exp });
         } else if (data.header.hpType === "dynamic-age") {
             const age = Utils.calculateYearsSince(CONFIG.BIRTH_DATE);
             hpValueContainer.textContent = String(age);
+        } else if (data.header.hpType === "collection-count") {
+            hpValueContainer.textContent = String(collectionSize());
         } else {
             hpValueContainer.textContent = data.header.hpValue || "";
         }
@@ -293,13 +354,24 @@ class TcgCard extends HTMLElement {
         this.toggleAttribute("no-image", !data.image && !data.art);
         art.replaceChildren(data.art ? icon(data.art.icon) : "");
 
+        const [avif, webp] = this.shadowRoot.querySelectorAll("source");
         if (!data.image) {
             img.removeAttribute("src");
+            avif.removeAttribute("srcset");
+            webp.removeAttribute("srcset");
             return;
         }
 
         // The front card's image is the LCP element; the ones behind it can wait.
         const isActive = this.dataset.pos === "0";
+        const isJpeg = /\.jpe?g$/i.test(data.image);
+        if (isJpeg) {
+            avif.srcset = data.image.replace(/\.jpe?g$/i, ".avif");
+            webp.srcset = data.image.replace(/\.jpe?g$/i, ".webp");
+        } else {
+            avif.removeAttribute("srcset");
+            webp.removeAttribute("srcset");
+        }
         img.src = data.image;
         img.alt = data.header.name;
         img.dataset.card = data.id;
@@ -369,11 +441,11 @@ class TcgCard extends HTMLElement {
         btn.className = "action-btn copy-btn";
         if (entry.brand) btn.style.setProperty("--brand", entry.brand);
 
-        const idleLabel = `Copy ${entry.label.toLowerCase()} address`;
+        const idleLabel = t("card.copy", { label: entry.label.toLowerCase() });
         const setState = (copied) => {
             btn.classList.toggle("copied", copied);
-            btn.setAttribute("aria-label", copied ? "Copied" : idleLabel);
-            btn.title = copied ? "Copied" : idleLabel;
+            btn.setAttribute("aria-label", copied ? t("card.copied") : idleLabel);
+            btn.title = copied ? t("card.copied") : idleLabel;
             btn.replaceChildren(icon(copied ? "check" : "copy"));
         };
         setState(false);
@@ -399,7 +471,7 @@ class TcgCard extends HTMLElement {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "action-btn explore";
-        btn.append(icon("book-open"), " Open the set");
+        btn.append(icon("book-open"), ` ${t("card.openSet")}`);
         btn.addEventListener("click", (e) => {
             e.stopPropagation();
             this.dispatchEvent(
@@ -426,7 +498,7 @@ class TcgCard extends HTMLElement {
     renderBack(data) {
         this.toggleAttribute("has-back", this.hasBack);
         this.shadowRoot.querySelectorAll(".flip-btn").forEach((btn, i) => {
-            const label = i === 0 ? "Show the back of the card" : "Show the front of the card";
+            const label = t(i === 0 ? "card.showBack" : "card.showFront");
             btn.setAttribute("aria-label", label);
             btn.title = label;
         });

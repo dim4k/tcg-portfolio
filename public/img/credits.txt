@@ -1,4 +1,7 @@
-Sources for the card images in this folder.
+Sources for the card images in this folder. Each JPEG has an AVIF and a WebP copy made from it.
+
+Fonts (public/fonts): Poppins, Lato and Unbounded, latin subsets from Google Fonts, under the
+SIL Open Font License 1.1 (https://openfontlicense.org).
 
 - experience.jpg
   "people sitting down near table with assorted laptop computers"
@@ -20,7 +23,7 @@ Sources for the card images in this folder.
   Screenshot of the live demo, https://dim4k.github.io/mixera/
 
 - projects/tcg-portfolio.jpg
-  Cropped from og-image.png in this folder.
+  Cropped from the share preview in this folder (now og-image.jpg).
 
 - off-the-clock/cycling.jpg, photography.jpg
   Photos by the author.

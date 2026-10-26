@@ -9,6 +9,8 @@ export class DeckManager {
         this.isAnimating = false;
         this.isDragging = false;
         this.isBinderOpen = false;
+        // The opaque loader is over the page (setCovered): nothing animated under it shows.
+        this.isCovered = false;
         // A card taken out of a binder pocket: while set, it follows the pointer and the
         // gyroscope instead of the front card (interactions.js).
         this.peekCard = null;
@@ -37,6 +39,11 @@ export class DeckManager {
         if (this.opened.length) Collection.save(this.opened);
         this.deal(start);
         this.syncBackground();
+
+        // A card just counted as seen loses its "new" badge.
+        document.addEventListener("card-seen", (e) => {
+            this.cards.find((card) => card.data.slug === e.detail.slug)?.dismissNew();
+        });
 
         // Rotating a phone or resizing across the breakpoint must re-evaluate the background.
         Utils.mobileMql.addEventListener("change", () => this.syncBackground());
@@ -106,6 +113,8 @@ export class DeckManager {
         this.renderer.render(this.cardData, startIndex);
 
         const cards = Array.from(this.deckContainer.querySelectorAll("tcg-card"));
+        // The cards not looked at yet wear a "new" badge (seen-tracker.js takes it off).
+        cards.forEach((card) => card.toggleAttribute("unseen", !Collection.hasSeen(card.data.slug)));
         this.cards = [...cards.slice(startIndex), ...cards.slice(0, startIndex)];
         this.frontCard = null;
         document.dispatchEvent(
@@ -308,10 +317,16 @@ export class DeckManager {
         );
     }
 
+    setCovered(covered) {
+        this.isCovered = covered;
+        this.syncBackground();
+    }
+
     // Single decision point for whether the animated background should be running.
     syncBackground() {
         const wanted =
             !this.isBinderOpen &&
+            !this.isCovered &&
             !Utils.isMobile() &&
             !Utils.prefersReducedMotion();
 

@@ -1,5 +1,6 @@
 import { CONFIG } from "../config.js";
 import { setCards } from "./card-renderer.js";
+import { localizeSet, t } from "../i18n.js";
 
 /** "#1d1757" -> [29, 23, 87] */
 function rgb(hex) {
@@ -35,15 +36,14 @@ function nameSize(name) {
 
 /** What the pack promises, from the rarities of its cards: "1 gold + 2 rares". */
 function rarityLine(cards) {
-    const parts = Object.entries(CONFIG.RARITIES)
-        .map(([key, rarity]) => {
+    const parts = Object.keys(CONFIG.RARITIES)
+        .map((key) => {
             const n = cards.filter((card) => card.rarity === key).length;
-            const label = rarity.label.toLowerCase();
-            return n ? `${n} ${label}${n > 1 && key !== "gold" ? "s" : ""}` : "";
+            return n ? t("pack.rarityCount", { n, rarity: key }) : "";
         })
         .filter(Boolean)
         .reverse();
-    return parts.length ? parts.join(" + ") : "All common";
+    return parts.length ? parts.join(" + ") : t("pack.allCommon");
 }
 
 /** Inside of a pack (wrapper strip and printed body), for any set of CONFIG.SETS. */
@@ -51,17 +51,18 @@ export function packMarkup(set) {
     const series = String(CONFIG.SETS.indexOf(set) + 1).padStart(2, "0");
     const cards = setCards(set);
     const count = cards.length;
+    const name = localizeSet(set).name;
     return `
         <span class="pack-strip"></span>
         <span class="pack-body">
             <span class="pack-art">
                 <span class="pack-code">${set.code}</span>
                 <span class="pack-band"></span>
-                <span class="pack-head"><span>TCG Portfolio</span><span>Series ${series}</span></span>
-                <span class="pack-name" style="font-size: ${nameSize(set.name)}cqw">${set.name.split(" ").join("<br />")}</span>
+                <span class="pack-head"><span>TCG Portfolio</span><span>${t("pack.series", { n: series })}</span></span>
+                <span class="pack-name" style="font-size: ${nameSize(name)}cqw">${name.split(" ").join("<br />")}</span>
                 <span class="pack-foot">
-                    <span class="pack-stamp">1st<br />Ed.</span>
-                    <span class="pack-info">${count} cards<br />${rarityLine(cards)}</span>
+                    <span class="pack-stamp">${t("pack.edition")}</span>
+                    <span class="pack-info">${t("cards", { n: count })}<br />${rarityLine(cards)}</span>
                     <span class="pack-bar"></span>
                 </span>
             </span>

@@ -37,21 +37,32 @@ export const CONFIG = {
     GLARE_GYRO: 0.8,
     // Delay before the light sweep that shows off the holo foil on a new front card.
     SHINE_DELAY: 350,
-    // sessionStorage key: ids of the sets opened this session, comma separated, i.e. the sets
-    // in the deck. The booster intro plays only while it is empty. Mirrored in index.html.
+    // localStorage keys (collection.js). The ids of the sets opened, comma separated, i.e. the
+    // sets in the deck: the booster intro plays only while it is empty (mirrored in
+    // index.html). The slugs of the cards seen, and the ids of the sets the visitor already
+    // knew about, so a set added since their last visit shows as new.
     BOOSTER_KEY: "tcg-booster-opened",
-    // Label/icon for the deck<->binder view toggle button, keyed by current view.
+    SEEN_KEY: "tcg-seen",
+    KNOWN_KEY: "tcg-known-sets",
+    // A card counts as seen once it stays this long (ms) in front of the deck, is flipped, or is
+    // taken out of its binder pocket: leafing through with the scrubber does not count. Until
+    // then it wears a "new" badge.
+    SEEN_DWELL: 200,
+    // Icon for the deck<->binder view toggle button, keyed by current view. The labels are in
+    // the locales (view.deck, view.binder).
     VIEW_TOGGLE: {
-        deck: { icon: "book-open", label: "Binder" },
-        binder: { icon: "layer-group", label: "Deck" },
+        deck: { icon: "book-open", label: "view.binder" },
+        binder: { icon: "layer-group", label: "view.deck" },
     },
-    // Card rarities, in rising order. A card gets one with `rarity: "rare"` or `rarity: "gold"`;
-    // without it, it is common. Each rarity has its own finish (tcg-card.css), a symbol before
-    // the collector number, and its reveal in the booster, where it comes out after the
-    // commons: the halo for a rare, the back cracking open for a gold.
+    // Card rarities, in rising order. A card gets one with `rarity: "rare"`, `"gold"` or
+    // `"secret"`; without it, it is common. Each rarity has its own finish (tcg-card.css), a
+    // symbol before the collector number, and its reveal in the booster, where it comes out
+    // after the commons: the halo for a rare, the back cracking open for a gold, a supernova
+    // for a secret (`rays`: in the glow of the halo). Labels are in the locales (rarity.rare...).
     RARITIES: {
-        rare: { label: "Rare", symbol: "★", reveal: "halo" },
-        gold: { label: "Gold", symbol: "★★", reveal: "cracks" },
+        rare: { symbol: "★", reveal: "halo" },
+        gold: { symbol: "★★", reveal: "cracks" },
+        secret: { symbol: "★★★", reveal: "nova", rays: true },
     },
     SOCIAL: {
         linkedin: {
@@ -90,18 +101,22 @@ export const CONFIG = {
     // Collections. Each one is a booster pack, a run of pages in the binder and, once its
     // booster is opened, a part of the deck: the deck holds every opened set, in this order.
     // A new collection only needs an entry here:
-    //   id       stable key, also stored in sessionStorage once the booster is opened
+    //   id       stable key, also stored in localStorage once the booster is opened
     //   code     two letters, printed on the pack and before each collector number (BS 01/05)
     //   name     shown on the pack, the deck dividers and the binder
+    //   tagline  what is inside, under the pack while picking one
     //   icon     key of icons.js, shown on the deck dividers and the binder tabs
+    //   secret   left out of sight until every other card has been seen (collection.js)
     //   booster  colours of the pack: `color` for the wrapper, `highlight` for its accents
     //   cards    full card data (see the README), or `projects`, printed by setCards()
-    // Any card or project can take a `rarity` (see RARITIES).
+    // Any card or project can take a `rarity` (see RARITIES). The texts are in English here;
+    // public/js/locales/fr.js translates them, by set id and card slug.
     SETS: [
         {
             id: "base",
             code: "BS",
             name: "Base Set",
+            tagline: "Profile & contact",
             icon: "star",
             booster: { color: "#f0532b", highlight: "#ffd77a" },
             cards: [
@@ -254,12 +269,12 @@ export const CONFIG = {
                     back: {
                         title: "After Hours",
                         items: [
-                            { label: "Map2Poster", text: "Print-ready map posters" },
-                            { label: "Kimpay", text: "Split expenses with friends" },
-                            { label: "MixEra", text: "Guess the year of a song" },
-                            { label: "Naolib", text: "Live transit in Home Assistant" },
-                            { label: "EzLoc", text: "Rental site with a built-in CMS" },
-                            { label: "Cookim", text: "Recipes, meal plans and shopping lists" },
+                            { label: "Map2Poster", text: "Any city as a print-ready poster" },
+                            { label: "Kimpay", text: "Group expenses, to the cent" },
+                            { label: "MixEra", text: "A music quiz: guess the year" },
+                            { label: "Naolib", text: "Nantes transit in Home Assistant" },
+                            { label: "EzLoc", text: "Holiday rental site with its own CMS" },
+                            { label: "Cookim", text: "Recipes, meal plans, shopping lists" },
                             { label: "TCG Portfolio", text: "The site you are on" },
                         ],
                     },
@@ -309,6 +324,7 @@ export const CONFIG = {
             id: "after-hours",
             code: "AH",
             name: "After Hours",
+            tagline: "Side projects",
             icon: "moon",
             booster: { color: "#1d1757", highlight: "#8ff0ff" },
             // Side projects, each printed as a card with its live demo and source links, and
@@ -320,8 +336,8 @@ export const CONFIG = {
                     label: "Map2Poster",
                     icon: "map-location-dot",
                     image: "public/img/projects/map2poster.jpg",
-                    desc: "Print-ready map posters",
-                    about: "Generates a high resolution image of a map, styled with Mapbox.",
+                    desc: "Any city as a print-ready poster",
+                    about: "Ten poster styles, exported at 300 DPI for an A1 print. Runs in the browser, no account, no API key.",
                     language: "HTML",
                     demo: "https://dim4k.github.io/map2poster/",
                     source: "https://github.com/dim4k/map2poster",
@@ -332,7 +348,8 @@ export const CONFIG = {
                     label: "Kimpay",
                     icon: "wallet",
                     image: "public/img/projects/kimpay.jpg",
-                    desc: "Split expenses with friends",
+                    desc: "Group expenses, to the cent",
+                    about: "No account, just a shared link: everyone adds what they paid, and it works out who owes whom in the fewest payments.",
                     language: "TypeScript",
                     demo: "https://kimpay.io/",
                     source: "https://github.com/dim4k/kimpay",
@@ -344,7 +361,8 @@ export const CONFIG = {
                     label: "MixEra",
                     icon: "music",
                     image: "public/img/projects/mixera.jpg",
-                    desc: "Guess the year of a song",
+                    desc: "A music quiz: guess the year",
+                    about: "Five game modes, from the exact year of a song to a blind test. Plays with physical Hitster cards too.",
                     language: "Vue",
                     demo: "https://dim4k.github.io/mixera/",
                     source: "https://github.com/dim4k/mixera",
@@ -355,8 +373,8 @@ export const CONFIG = {
                     label: "Naolib",
                     icon: "bus",
                     image: "public/img/projects/naolib.jpg",
-                    desc: "Live transit in Home Assistant",
-                    about: "Home Assistant integration for the Naolib bus and tram network in Nantes.",
+                    desc: "Nantes transit in Home Assistant",
+                    about: "Real-time bus, tram and ferry departures on the Naolib network, and the bikes left at each station.",
                     language: "JavaScript",
                     source: "https://github.com/dim4k/ha-naolib",
                     brand: "#41bdf5",
@@ -366,7 +384,8 @@ export const CONFIG = {
                     label: "EzLoc",
                     icon: "house",
                     image: "public/img/projects/ezloc.jpg",
-                    desc: "Rental site with a built-in CMS",
+                    desc: "Holiday rental site with its own CMS",
+                    about: "A showcase site for a holiday home: texts, photos, prices and SEO all edited in a self-hosted PocketBase.",
                     language: "JavaScript",
                     source: "https://github.com/dim4k/ezloc",
                     brand: "#0d9488",
@@ -377,8 +396,8 @@ export const CONFIG = {
                     label: "Cookim",
                     icon: "utensils",
                     image: "public/img/projects/cookim.jpg",
-                    desc: "Recipes, meal plans and shopping lists",
-                    about: "My recipes in one place, planned through the week and turned into a shopping list.",
+                    desc: "Recipes, meal plans, shopping lists",
+                    about: "My recipes in one place, a weekend or a week of meals planned, and the shopping list already merged.",
                     // Private repository: no source link, and no language on the card.
                     demo: "https://coo.kim/",
                     brand: "#e8552d",
@@ -390,7 +409,7 @@ export const CONFIG = {
                     icon: "layer-group",
                     image: "public/img/projects/tcg-portfolio.jpg",
                     desc: "The site you are on",
-                    about: "Holo foil, 3D tilt and card physics in vanilla JS, without a build step.",
+                    about: "Boosters, holo foil and card physics in vanilla JS, without a build step.",
                     language: "JavaScript",
                     demo: "https://antoine.kim/",
                     source: "https://github.com/dim4k/tcg-portfolio",
@@ -402,6 +421,7 @@ export const CONFIG = {
             id: "off-the-clock",
             code: "OC",
             name: "Off the Clock",
+            tagline: "Life outside work",
             icon: "camera",
             booster: { color: "#0f4c46", highlight: "#ffb05c" },
             // Life outside work.
@@ -437,7 +457,7 @@ export const CONFIG = {
                     body: {
                         row1: {
                             title: "Through the Lens",
-                            desc: "Sharing moments through the lens, on two wheels.",
+                            desc: "Moments caught along the way, on the road or around town.",
                             icon: "camera",
                         },
                         row2: {
@@ -506,6 +526,54 @@ export const CONFIG = {
                         },
                     },
                     footer: { text: "Speaks: FR / EN" },
+                },
+            ],
+        },
+        {
+            // The reward for seeing every card: its booster shows up in the dock then.
+            id: "secret",
+            code: "SR",
+            name: "Secret",
+            tagline: "Every card seen",
+            icon: "envelope",
+            secret: true,
+            booster: { color: "#16131f", highlight: "#e6dcff" },
+            cards: [
+                {
+                    id: 1,
+                    slug: "lets-talk",
+                    theme: "dark",
+                    rarity: "secret",
+                    header: {
+                        stage: "Secret Rare",
+                        name: "Let's Talk",
+                        hpLabel: "CARDS",
+                        hpType: "collection-count",
+                    },
+                    art: { icon: "envelope" },
+                    body: {
+                        row1: {
+                            title: "You've Seen Them All",
+                            desc: "Every card turned up. If you made it this far, we should probably talk.",
+                            icon: "envelope",
+                        },
+                        row2: {
+                            title: "Get in Touch",
+                            desc: "",
+                            actions: ["email", "linkedin"],
+                        },
+                    },
+                    footer: { text: "Status: Open to offers" },
+                    back: {
+                        title: "Next Move",
+                        items: [
+                            { label: "Email", text: "contact@antoine.kim" },
+                            { label: "LinkedIn", text: "in/antoine-kim" },
+                            { label: "Based in", text: "Nantes, France" },
+                            { label: "Status", text: "Open to offers" },
+                            { label: "Collection", text: "Complete. Well played." },
+                        ],
+                    },
                 },
             ],
         },
