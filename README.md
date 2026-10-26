@@ -26,11 +26,18 @@ This project reimagines the traditional web portfolio as a deck of collectible c
 -   **3D Tilt Physics**: Cards rotate based on mouse position (Desktop) or device orientation (Mobile Gyroscope).
 -   **Swirl Background**: A dynamic, noise-based particle system that creates a living backdrop.
 -   **Infinite Deck**: The stacking logic supports any number of cards automatically.
+-   **Boosters & Collection**: The first visit of a session opens on one sealed pack per set. Pick one and slice it with a stroke in any direction: its cards burst out, fan, then snap into the deck. The deck is your collection: every booster opened adds its cards, filed by set. Packs still sealed wait in a dock above the deck navigation; several open a pick among them.
+-   **Card Backs**: Click a card (or its flip button) to turn it over and read the details on its back.
+-   **Collection Drawer**: A toolbar button opens one tile per set, with its pack and progress: an opened set narrows the deck to its cards, a sealed one opens its booster.
+-   **Binder**: A book whose pages turn with a drag or a tap (two pages side by side on wide screens, one on phones), with a divider page and colour tab per set. Sealed sets show mystery pockets and a button to open their booster; picking a card sends it to the front of the deck.
 
 ### 🎮 Interactions
 
--   **Gesture Control**: Swipe down on mobile to cycle cards.
--   **Scroll Navigation**: Smooth scroll wheel support on desktop.
+-   **Drag & Throw**: Grab the front card with the mouse or a finger and throw it in any direction to cycle the deck.
+-   **Deck Navigation**: Collector numbers (`BS 03/05`) on each card, and a scrubber under the deck, cut into one coloured segment per set: drag it to leaf through the deck, at 10 cards or 200.
+-   **Scroll & Keyboard**: Scroll wheel and arrow keys cycle the deck too.
+-   **Deep Links**: `/#projects` opens the deck on the Projects card, `/#kimpay` on a card of After Hours (adding the set to the collection); the address bar follows the card in front.
+-   **Accessible**: Only the front card is focusable, and card changes are announced to screen readers.
 -   **Responsive Design**: Adaptive layout that transforms from a 3D showcase to a touch-friendly mobile view.
 
 ## ⚙️ Configuration
@@ -40,31 +47,60 @@ Open `public/js/config.js` to customize:
 
 ### 1. Profile & Content
 
-Modify the `CARDS` array to add, remove, or edit cards.
+Cards are filed by collection in `SETS`. Each set is a booster pack, a run of pages in the
+binder and, once opened, a part of the deck. Adding a collection only takes a new entry: the
+packs, deck dividers, binder pages and tabs are all built from it.
 
 ```javascript
 export const CONFIG = {
     // ...
-    CARDS: [
+    SETS: [
         {
-            id: 1,
-            theme: "fire",
-            header: {
-                stage: "Professional Profile",
-                name: "Your Name",
-                hpValue: "34",
-                hpLabel: "AGE",
-                hpType: "dynamic-age",
-            },
-            // ...
+            id: "base",
+            code: "BS", // printed on the pack and before each collector number
+            name: "Base Set",
+            icon: "star", // key of icons.js, for the dividers and binder tabs
+            booster: { color: "#f0532b", highlight: "#ffd77a" }, // pack colours
+            cards: [
+                {
+                    id: 1,
+                    theme: "fire",
+                    header: {
+                        stage: "Professional Profile",
+                        name: "Your Name",
+                        hpValue: "34",
+                        hpLabel: "AGE",
+                        hpType: "dynamic-age",
+                    },
+                    // ...
+                },
+            ],
         },
     ],
 };
 ```
 
-A card's second row renders links from either `actions` (keys of `CONFIG.SOCIAL`, laid out
-side by side) or `projects` (keys of `CONFIG.PROJECTS`, stacked as a list where each row
-shows a name and a one-line description).
+Each card can also have:
+
+-   `slug`: the URL hash that opens the deck on it (`antoine.kim/#profile`).
+-   `back`: a title and a list of `{ label, text }` items printed on the back. Cards without
+    one do not flip.
+-   `art`: `{ icon }`, a large icon shown in the picture frame when there is no `image`.
+
+A card's second row renders `actions` (keys of `CONFIG.SOCIAL`, laid out side by side). A social
+entry with a `copy` value gets a button that copies it, for links like `mailto:` that do nothing
+without a configured client. `expansion` adds a button that opens that expansion in the binder.
+
+A set can list `projects` instead of `cards` (the After Hours set does): each side project,
+with its own `slug`, is printed as a card, with a live demo and a source link when it has one.
+Its `image` fills the picture frame (`icon` is shown when there is none). A project without
+`source` or `language` (a private repository) shows only its demo link. Image sources and
+credits are listed in `public/img/credits.txt`.
+A set's `code` is printed before the collector number (`AH 01/06`).
+
+The opened sets are kept in `sessionStorage` (`CONFIG.BOOSTER_KEY`), so a reload keeps the
+same deck; the booster intro only plays while none is opened. "Reset collection", at the
+bottom of the collection drawer, seals every booster again after a confirmation.
 
 ### 2. Visual Themes
 
@@ -79,7 +115,7 @@ apart. Add a `--bg-*` and a `--color-*` entry in `public/css/modules/base.css`:
 ```
 
 Then add the matching `:host([theme="fire"])` block in
-`public/css/components/tcg-card.css`, and list the theme in `CONFIG.THEMES`.
+`public/css/components/tcg-card.css`, and set it as the `theme` of a card.
 
 ### 3. Tuning
 
@@ -87,8 +123,20 @@ Adjust physics and sensitivity in the root of the object.
 
 ```javascript
     GYRO_SENSITIVITY: 0.5,
-    MOUSE_ROTATION_FACTOR: 15
+    MOUSE_ROTATION_FACTOR: 15,
+    THROW_DISTANCE: 110, // px dragged before a released card is thrown
 ```
+
+### 4. Share Preview
+
+Link previews (LinkedIn, Slack, X) use `public/img/og-image.png`, a 1200×630 screenshot of
+`tools/og-image.html`. After changing the profile card, serve the folder and regenerate it:
+
+```bash
+chrome --headless=new --hide-scrollbars --window-size=1200,630 --virtual-time-budget=10000     --screenshot=public/img/og-image.png http://localhost:8000/tools/og-image.html
+```
+
+The `og:*` tags in `index.html` need absolute URLs: update them if the site moves.
 
 ## 🚀 How to Run
 

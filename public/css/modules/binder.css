@@ -1,0 +1,544 @@
+/* ==========================================
+   BINDER (binder-view.js): a book whose pages turn
+   ========================================== */
+
+/* How far a leaf has turned, 0 (right) to 1 (left). Registered so it animates itself: the
+   lift, the shading and the fade are all worked out from it on every frame. */
+@property --flip {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0;
+}
+
+.binder {
+    /* Natural size of a thumbnail before scaling. Keep in sync with THUMB_WIDTH in binder-view.js. */
+    --thumb-w: 430.8px;
+    --thumb-h: 600px;
+    /* Written by BinderView.layout(): page size, pages side by side, thumbnail scale. */
+    --page-w: 320px;
+    --page-h: 444px;
+    --cols: 2;
+    --thumb-zoom: 0.2;
+    /* The punched holes, shared by the pages and the rings so they line up: distance of their
+       centres from the spine, radius, and heights on the page. */
+    --hole-x: calc(var(--page-w) * 0.045);
+    --hole-r: calc(var(--page-w) * 0.013);
+    --hole-1: 22%;
+    --hole-2: 50%;
+    --hole-3: 78%;
+
+    position: fixed;
+    inset: 0;
+    /* Under the toolbar, whose toggle closes the binder. */
+    z-index: calc(var(--z-overlay) - 1);
+    display: grid;
+    place-items: center;
+    padding: 96px 16px 84px;
+    background: radial-gradient(circle at 50% 30%, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.85));
+    font-family: "Poppins", sans-serif;
+    color: #fff;
+}
+
+.binder[hidden] {
+    display: none;
+}
+
+/* Focused programmatically on open, only to hand keyboard users a starting point. */
+.binder:focus {
+    outline: none;
+}
+
+.binder-stage {
+    position: relative;
+    width: calc(var(--page-w) * var(--cols));
+    height: var(--page-h);
+}
+
+/* The leather behind the pages, once the cover is turned. */
+.binder-backing {
+    position: absolute;
+    inset: -10px;
+    border-radius: 18px;
+    background: linear-gradient(160deg, #1d1820, #0f0c12);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.binder.is-open-book .binder-backing,
+.binder[data-mode="single"] .binder-backing {
+    opacity: 1;
+}
+
+.binder-book {
+    position: absolute;
+    inset: 0;
+    perspective: 2200px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* A leaf turns around the spine: its front is a right-hand page, its back a left-hand one.
+   Halfway through, it lifts towards the reader, as a page held by its edge does. */
+.leaf {
+    position: absolute;
+    top: 0;
+    left: calc(var(--page-w) * (var(--cols) - 1));
+    width: var(--page-w);
+    height: var(--page-h);
+    transform-style: preserve-3d;
+    transform-origin: left center;
+    transform: translateZ(calc(var(--flip) * (1 - var(--flip)) * 140px))
+        rotateY(calc(var(--flip) * -180deg));
+    transition: --flip 0.8s cubic-bezier(0.45, 0.05, 0.25, 1);
+}
+
+.leaf.is-dragging,
+.leaf.no-transition {
+    transition: none;
+}
+
+/* The query container of its page: cqw below are shares of the page width, padding included. */
+.leaf-face {
+    position: absolute;
+    inset: 0;
+    container-type: size;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+.leaf-face.back {
+    transform: rotateY(180deg);
+}
+
+/* One page at a time: a turned page fades as it lands, instead of piling up on the left. */
+.binder[data-mode="single"] .leaf-face {
+    opacity: clamp(0, (1 - var(--flip)) * 4, 1);
+}
+
+/* A page mid-turn: darker towards the spine as it rises, with the light sliding across. */
+.leaf-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.6), transparent 60%),
+        linear-gradient(
+            100deg,
+            transparent calc(var(--flip) * 120% - 30%),
+            rgba(255, 255, 255, 0.12) calc(var(--flip) * 120% - 10%),
+            transparent calc(var(--flip) * 120% + 10%)
+        );
+    opacity: calc(var(--flip) * (1 - var(--flip)) * 4);
+    pointer-events: none;
+}
+
+/* The rings sit across the spine, from a hole of the left page to one of the right page.
+   They are part of the book (binder-view.js): above the pages lying flat, under the one
+   turning, which passes over them. */
+.binder-rings {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--page-w) * (var(--cols) - 1));
+    width: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.binder-rings i {
+    position: absolute;
+    left: calc(-1 * var(--hole-x) - var(--hole-r));
+    width: calc(2 * var(--hole-x) + 2 * var(--hole-r));
+    height: calc(var(--hole-r) * 2.2);
+    translate: 0 -50%;
+    border-radius: 99px;
+    /* Darker where they go into the holes, polished in between. */
+    background: linear-gradient(
+            90deg,
+            rgba(0, 0, 0, 0.55),
+            transparent 22%,
+            transparent 78%,
+            rgba(0, 0, 0, 0.55)
+        ),
+        linear-gradient(180deg, #6d7183, #f1f3f8 40%, #9a9eb0 62%, #4b4f5e);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.55);
+}
+
+.binder-rings i:nth-child(1) {
+    top: var(--hole-1);
+}
+
+.binder-rings i:nth-child(2) {
+    top: var(--hole-2);
+}
+
+.binder-rings i:nth-child(3) {
+    top: var(--hole-3);
+}
+
+.binder[data-mode="spread"]:not(.is-open-book) .binder-rings {
+    opacity: 0;
+}
+
+/* One page at a time: no left page, so each ring only loops out from the spine. */
+.binder[data-mode="single"] .binder-rings i {
+    left: -12px;
+    width: calc(12px + var(--hole-x) + var(--hole-r));
+}
+
+/* ---------- Pages ---------- */
+.binder-page {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 3.5cqw;
+    padding: 7cqw 7cqw 6cqw 9cqw;
+    border-radius: 6px 14px 14px 6px;
+    background: linear-gradient(160deg, #23252f, #15161d);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.leaf-face.back .binder-page {
+    padding-left: 7cqw;
+    padding-right: 9cqw;
+    border-radius: 14px 6px 6px 14px;
+}
+
+/* Punched holes along the binding edge, where the rings go through. */
+.binder-page::before {
+    --hole: #0a090e 0 var(--hole-r), rgba(255, 255, 255, 0.1) calc(var(--hole-r) + 1px)
+            calc(var(--hole-r) + 2px),
+        transparent calc(var(--hole-r) + 3px);
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--hole-x) - 2 * var(--hole-r));
+    width: calc(4 * var(--hole-r));
+    background: radial-gradient(circle at 50% var(--hole-1), var(--hole)),
+        radial-gradient(circle at 50% var(--hole-2), var(--hole)),
+        radial-gradient(circle at 50% var(--hole-3), var(--hole));
+}
+
+.leaf-face.back .binder-page::before {
+    left: auto;
+    right: calc(var(--hole-x) - 2 * var(--hole-r));
+}
+
+.binder-page.is-cover,
+.binder-page.is-back {
+    align-items: center;
+    justify-content: center;
+    gap: 4cqw;
+    padding: 10cqw;
+    text-align: center;
+    background: radial-gradient(90% 60% at 50% 35%, #3a2a4a, transparent 70%),
+        repeating-radial-gradient(
+            circle at 30% 20%,
+            rgba(255, 255, 255, 0.025) 0 1px,
+            transparent 1px 3px
+        ),
+        linear-gradient(160deg, #241a2d, #0e0a12);
+    box-shadow: inset 0 0 0 1.4cqw rgba(255, 255, 255, 0.04),
+        inset 0 0 0 1.6cqw rgba(0, 0, 0, 0.5);
+}
+
+.cover-eyebrow {
+    font: 600 3cqw/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #ffcf6b;
+}
+
+.cover-title {
+    font: 900 10cqw/1 "Unbounded", "Poppins", sans-serif;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.cover-count {
+    font: 600 3cqw/1 ui-monospace, Consolas, monospace;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.binder-page.is-verso {
+    background: linear-gradient(160deg, #1b1c24, #121218);
+}
+
+/* A set's divider page, in the colours of its booster. */
+.binder-page.is-divider {
+    justify-content: space-between;
+    background: radial-gradient(
+            100% 70% at 70% 20%,
+            color-mix(in oklab, var(--set-color) 70%, transparent),
+            transparent 70%
+        ),
+        linear-gradient(165deg, color-mix(in oklab, var(--set-color) 55%, #15121c), #120f18 75%);
+}
+
+.divider-code {
+    position: absolute;
+    right: -4cqw;
+    top: 10cqw;
+    font: 900 56cqw/0.8 "Unbounded", "Poppins", sans-serif;
+    color: transparent;
+    -webkit-text-stroke: 0.45cqw rgba(255, 255, 255, 0.25);
+    pointer-events: none;
+}
+
+.divider-series {
+    position: relative;
+    font: 600 3cqw/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.divider-name {
+    position: relative;
+    margin: auto 0 0;
+    font: 900 12cqw/0.92 "Unbounded", "Poppins", sans-serif;
+    text-transform: uppercase;
+    color: var(--set-highlight);
+}
+
+.divider-state {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3cqw;
+    font: 600 3.2cqw/1.3 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.divider-open {
+    padding: 2.6cqw 4cqw;
+    border: 0;
+    border-radius: 3cqw;
+    background: #ffcf6b;
+    color: #24170a;
+    font: 700 3.6cqw/1 "Poppins", sans-serif;
+    cursor: pointer;
+}
+
+.sheet-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.sheet-head h2 {
+    margin: 0;
+    font: 700 4.2cqw/1 "Poppins", sans-serif;
+}
+
+.sheet-head span,
+.sheet-number {
+    font: 600 2.8cqw/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.sheet-number {
+    text-align: right;
+}
+
+.pockets {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Rows as tall as the pockets' aspect ratio makes them, so pockets fill their column. */
+    grid-auto-rows: min-content;
+    align-content: start;
+    gap: 2.6cqw;
+}
+
+.pocket {
+    position: relative;
+    isolation: isolate;
+    aspect-ratio: 0.718;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    border-radius: calc(var(--card-radius) * var(--thumb-zoom) + 2px);
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+button.pocket {
+    cursor: pointer;
+}
+
+button.pocket:focus-visible,
+.divider-open:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+}
+
+/* Plastic sleeve sheen over the card. */
+.pocket::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.16) 0 14%, transparent 30%);
+    pointer-events: none;
+}
+
+/* Laid out at full size, then scaled into the pocket. */
+.pocket tcg-card {
+    inset: auto;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    width: var(--thumb-w);
+    height: var(--thumb-h);
+    transform: scale(var(--thumb-zoom));
+    transform-origin: 0 0;
+    transition: none;
+    pointer-events: none;
+}
+
+/* A card of a sealed set: something waits in the pocket. */
+.pocket.is-mystery {
+    display: grid;
+    place-items: center;
+    background: repeating-linear-gradient(
+            135deg,
+            color-mix(in oklab, var(--set-color) 30%, transparent) 0 5px,
+            transparent 5px 10px
+        ),
+        rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--set-highlight) 40%, transparent);
+}
+
+.pocket.is-mystery b {
+    /* cqw of the page: the pocket is about a quarter of its width. */
+    font: 900 9cqw/1 "Unbounded", "Poppins", sans-serif;
+    color: color-mix(in oklab, var(--set-highlight) 45%, transparent);
+}
+
+/* ---------- Tabs: one per set, on the edge of the book ---------- */
+.binder-tabs {
+    position: absolute;
+    z-index: 310;
+    left: 100%;
+    top: 10%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.binder-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px 8px 8px;
+    border: 0;
+    border-radius: 0 10px 10px 0;
+    background: color-mix(in oklab, var(--set-color) 45%, #15121c);
+    color: #fff;
+    font: 700 12px/1 "Poppins", sans-serif;
+    white-space: nowrap;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+}
+
+.binder-tab[aria-current="true"] {
+    background: var(--set-color);
+    color: #15121c;
+}
+
+.binder-tab.is-sealed {
+    background: #2a2733;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.binder-tab:focus-visible,
+.binder-nav button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* One page at a time: the tabs sit on top of the page. */
+.binder[data-mode="single"] .binder-tabs {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 100%;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.binder[data-mode="single"] .binder-tab {
+    border-radius: 10px 10px 0 0;
+}
+
+/* ---------- Page navigation ---------- */
+.binder-nav {
+    position: fixed;
+    left: 50%;
+    bottom: max(24px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 30px;
+    background: var(--glass-10);
+    border: 1px solid var(--glass-20);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.binder-nav button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--glass-60);
+    font-size: 14px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
+.binder-nav button:hover {
+    color: #fff;
+    background: var(--glass-20);
+}
+
+.binder-nav span {
+    padding: 0 10px;
+    font: 600 13px/1 ui-monospace, Consolas, monospace;
+    color: rgba(255, 255, 255, 0.85);
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+    .binder {
+        padding-top: 72px;
+    }
+
+    .binder-nav {
+        bottom: max(12px, env(safe-area-inset-bottom));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .leaf {
+        transition-duration: 0.01s;
+    }
+}

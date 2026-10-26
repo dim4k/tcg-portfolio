@@ -14,8 +14,10 @@
    ========================================== */
 :root {
     --card-aspect: 0.718;
-    /* Clamped so the card is never taller than a short window, which cannot scroll. */
-    --card-height: min(600px, 80vh);
+    /* Clamped so the card is never taller than a short window, which cannot scroll, and
+       leaves room for the toolbar above, the booster dock and the deck navigation below
+       (see the margin of .deck-container). */
+    --card-height: min(600px, 80vh, calc(100dvh - 224px));
     --card-width: calc(var(--card-height) * var(--card-aspect));
     --card-radius: 24px;
 
@@ -50,6 +52,12 @@
 /* ==========================================
    BODY & BACKGROUND
    ========================================== */
+/* Nothing may widen the page: cards fly off screen and the holo shine sweeps past their
+   edges, and a phone would zoom out to fit any of that. */
+html {
+    overflow: clip;
+}
+
 body {
     height: 100vh;
     height: 100dvh; /* dynamic toolbars on mobile */
@@ -101,30 +109,43 @@ body::before {
     position: relative;
     width: var(--card-width);
     height: var(--card-height);
+    /* Shifts the centred deck up: there is more to fit below it than above. */
+    margin-bottom: 72px;
     perspective: 1200px;
     z-index: var(--z-deck);
 }
 
 /* ==========================================
-   VIEW TOGGLE BUTTON
+   TOOLBAR (collection drawer + binder toggle)
    ========================================== */
-.view-toggle-btn {
+.toolbar {
     position: fixed;
-    top: 30px;
-    right: 30px;
+    top: max(24px, env(safe-area-inset-top));
+    right: max(24px, env(safe-area-inset-right));
     z-index: var(--z-overlay);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.view-toggle-btn,
+.deck-nav {
     background: var(--glass-10);
     border: 1px solid var(--glass-20);
+    border-radius: 30px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.view-toggle-btn {
     color: white;
     padding: 10px 20px;
-    border-radius: 30px;
     cursor: pointer;
     font-family: "Poppins", sans-serif;
     font-weight: 600;
     display: flex;
     align-items: center;
     gap: 10px;
-    backdrop-filter: blur(10px);
     transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
@@ -133,16 +154,12 @@ body::before {
     transform: translateY(-2px);
 }
 
-.view-toggle-btn:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 3px;
-}
-
 /* Inline icons. Font Awesome glyphs were 512 units tall, so height:1em reproduces
    exactly the size and aspect ratio the webfont used to render. */
-.view-toggle-btn svg,
-.scroll-hint svg,
-.swipe-hint-mobile svg {
+.toolbar svg,
+.deck-nav svg,
+.collection-drawer svg,
+.binder svg {
     height: 1em;
     width: auto;
     fill: currentColor;
@@ -154,42 +171,561 @@ body::before {
 }
 
 /* ==========================================
-   GRID VIEW LAYOUT
+   DECK NAVIGATION (previous/next around the scrubber, deck-nav.js)
    ========================================== */
-.deck-container.grid-view {
-    width: 100%;
-    height: 100vh;
-    height: 100dvh;
+.deck-nav {
+    position: fixed;
+    left: 50%;
+    bottom: max(24px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    /* Above the booster dock, which the scrubber's bubble rises over. */
+    z-index: calc(var(--z-overlay) + 1);
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 40px;
-    padding: 100px 40px 40px;
-    overflow-y: auto;
-    perspective: none;
+    align-items: center;
+    gap: 2px;
+    max-width: calc(100vw - 24px);
+    padding: 4px;
 }
 
-.deck-container.grid-view tcg-card {
-    position: relative !important;
-    width: var(--card-width);
-    height: var(--card-height);
-    transform: none;
-    opacity: 1 !important;
-    filter: none !important;
-    pointer-events: auto !important;
-    z-index: 1 !important;
-    margin: 0;
-    transition: transform 0.1s ease-out; /* Smoother hover follow */
+.deck-nav-step {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--glass-60);
+    font-size: 14px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: color 0.3s ease, background-color 0.3s ease;
 }
 
-.deck-container.grid-view tcg-card:hover {
-    z-index: 100 !important;
+.deck-nav-step:hover {
+    color: white;
+    background: var(--glass-20);
 }
 
-/* Hide scroll hint in grid view */
-body.grid-active .scroll-hint {
+/* A track cut into one segment per set; the thumb marks the card in front. */
+.deck-scrub {
+    position: relative;
+    width: 280px;
+    max-width: calc(100vw - 2 * 36px - 120px);
+    height: 36px;
+    margin: 0 8px;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.deck-scrub[hidden] {
     display: none;
+}
+
+.deck-scrub:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 4px;
+    border-radius: 8px;
+}
+
+.deck-scrub-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 6px;
+    margin-top: -3px;
+    display: flex;
+    gap: 2px;
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.deck-scrub-track span {
+    flex: 1 1 0;
+    min-width: 2px;
+    background: color-mix(in srgb, var(--set-color) 70%, transparent);
+}
+
+.deck-scrub-fill {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    height: 6px;
+    margin-top: -3px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+}
+
+.deck-scrub-thumb {
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18), 0 2px 6px rgba(0, 0, 0, 0.5);
+    transition: left 0.25s ease;
+    pointer-events: none;
+}
+
+.deck-scrub.is-dragging .deck-scrub-thumb {
+    transition: none;
+    scale: 1.15;
+}
+
+.deck-scrub-fill {
+    transition: width 0.25s ease;
+}
+
+.deck-scrub.is-dragging .deck-scrub-fill {
+    transition: none;
+}
+
+/* The card under the thumb, while dragging (and while hovering with a mouse). */
+.deck-scrub-tip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    transform: translateX(-50%);
+    padding: 7px 10px;
+    border-radius: 10px;
+    background: #fff;
+    color: #15121c;
+    font: 700 12px/1.2 "Poppins", sans-serif;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.deck-scrub-tip small {
+    display: block;
+    margin-top: 3px;
+    font: 600 10px/1 ui-monospace, Consolas, monospace;
+    color: #6a6478;
+}
+
+.deck-scrub.show-tip .deck-scrub-tip {
+    opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .deck-scrub:hover .deck-scrub-tip {
+        opacity: 1;
+    }
+}
+
+.deck-count {
+    flex: none;
+    padding: 0 6px 0 2px;
+    font: 600 12px/1 ui-monospace, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* ==========================================
+   COLLECTION (collection-drawer.js): the toolbar button and its drawer
+   ========================================== */
+.collection-btn {
+    position: relative;
+}
+
+/* Narrowed to one set: the button wears its colour. */
+.collection-btn.is-filtered {
+    border-color: var(--set-color);
+    box-shadow: inset 0 0 0 1px var(--set-color);
+}
+
+.collection-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 99px;
+    display: grid;
+    place-items: center;
+    background: #ffcf6b;
+    color: #24170a;
+    font: 700 11px/1 "Poppins", sans-serif;
+}
+
+.collection-badge[hidden] {
+    display: none;
+}
+
+.collection-drawer {
+    /* The global reset zeroes the margins that place a modal dialog: the drawer sits on
+       the right, full height. */
+    margin: 0 0 0 auto;
+    width: min(380px, 100vw);
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    padding: 20px;
+    border: 0;
+    border-left: 1px solid var(--glass-20);
+    background: #16141d;
+    color: #fff;
+    font-family: "Poppins", sans-serif;
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.collection-drawer[open] {
+    display: flex;
+    animation: drawer-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.collection-drawer::backdrop {
+    background: rgba(5, 5, 10, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.collection-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.collection-head h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.collection-head p {
+    margin: 6px 0 0;
+    font: 600 11px/1.3 ui-monospace, Consolas, monospace;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.collection-close {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--glass-10);
+    color: #fff;
+    font-size: 16px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
+.collection-tiles {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 10px;
+}
+
+.collection-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.collection-tile:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.collection-tile[aria-current="true"] {
+    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.collection-tile:focus-visible,
+.collection-close:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.collection-tile .pack-mini {
+    width: 62px;
+    margin: 0;
+    rotate: none;
+}
+
+.collection-tile.is-sealed .pack-mini {
+    filter: saturate(0.55) brightness(0.8) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+}
+
+.collection-tile b {
+    font-size: 12.5px;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.collection-tile small {
+    font: 600 10px/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.collection-tile.is-sealed small {
+    color: #ffcf6b;
+}
+
+.collection-bar {
+    width: 80%;
+    height: 4px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+.collection-bar i {
+    display: block;
+    height: 100%;
+    background: var(--set-color);
+}
+
+/* "All cards": a little stack with the card count. */
+.collection-stack {
+    width: 62px;
+    aspect-ratio: 0.68;
+    display: grid;
+    place-items: center;
+    margin-top: 6px;
+    border-radius: 6px;
+    background: linear-gradient(160deg, #3a3346, #1c1824);
+    box-shadow: 6px -6px 0 -1px #2c2636, 12px -12px 0 -2px #221d2b;
+    font: 900 14px/1 "Unbounded", "Poppins", sans-serif;
+}
+
+/* Reset: a quiet link at the very bottom, then a confirmation in its place. */
+.collection-foot {
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    justify-content: center;
+}
+
+.collection-reset {
+    padding: 6px 10px;
+    border: 0;
+    background: none;
+    color: rgba(255, 255, 255, 0.4);
+    font: 600 11px/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.06em;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.collection-reset:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.collection-reset[hidden],
+.collection-confirm[hidden] {
+    display: none;
+}
+
+.collection-confirm {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 90, 90, 0.08);
+    border: 1px solid rgba(255, 90, 90, 0.3);
+}
+
+.collection-confirm p {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.collection-confirm div {
+    display: flex;
+    gap: 8px;
+}
+
+.collection-confirm button {
+    flex: 1;
+    padding: 9px;
+    border: 1px solid var(--glass-20);
+    border-radius: 10px;
+    background: var(--glass-10);
+    color: #fff;
+    font: 700 12px/1 "Poppins", sans-serif;
+    cursor: pointer;
+}
+
+.collection-confirm button.is-danger {
+    border-color: transparent;
+    background: #e5484d;
+}
+
+.collection-reset:focus-visible,
+.collection-confirm button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+@keyframes drawer-in {
+    from {
+        transform: translateX(40px);
+        opacity: 0;
+    }
+}
+
+/* ==========================================
+   BOOSTER DOCK (booster-intro.js): the packs still sealed
+   ========================================== */
+.booster-dock {
+    position: fixed;
+    left: 50%;
+    /* Clear of the deck navigation: its 46px, then some air. */
+    bottom: calc(max(24px, env(safe-area-inset-bottom)) + 64px);
+    transform: translateX(-50%);
+    z-index: var(--z-overlay);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px 6px 12px;
+    border: 1px solid rgba(255, 207, 107, 0.45);
+    border-radius: 16px;
+    background: linear-gradient(120deg, rgba(255, 207, 107, 0.16), rgba(255, 255, 255, 0.05));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #fff;
+    font-family: "Poppins", sans-serif;
+    text-align: left;
+    cursor: pointer;
+    animation: dock-call 2.6s ease-in-out infinite;
+}
+
+.booster-dock[hidden] {
+    display: none;
+}
+
+.booster-dock:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+}
+
+/* A tiny copy of the pack: its look comes from the pack styles inline in index.html. */
+.pack-mini {
+    position: relative;
+    width: 28px;
+    aspect-ratio: 0.68;
+    container-type: inline-size;
+    margin-block: -10px;
+    rotate: -8deg;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+    transition: scale 0.2s ease;
+}
+
+.booster-dock:hover .pack-mini {
+    scale: 1.12;
+}
+
+/* Several boosters left: their packs fanned out in a little stack. */
+.booster-dock-packs {
+    display: flex;
+}
+
+.booster-dock-packs .pack-mini + .pack-mini {
+    margin-left: -18px;
+}
+
+.booster-dock-packs .pack-mini:nth-child(2) {
+    rotate: 4deg;
+    translate: 0 -2px;
+}
+
+.booster-dock-packs .pack-mini:nth-child(3) {
+    rotate: 14deg;
+    translate: 0 -3px;
+}
+
+.booster-dock-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.booster-dock-text b {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.booster-dock-text small {
+    font: 600 11px/1 ui-monospace, Consolas, monospace;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+}
+
+.booster-dock-cta {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: #ffcf6b;
+    color: #24170a;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+@keyframes dock-call {
+    50% {
+        box-shadow: 0 0 28px rgba(255, 207, 107, 0.4);
+    }
+}
+
+/* The deck's controls make no sense behind the binder. */
+body.binder-active .deck-nav,
+body.binder-active .deck-container,
+body.binder-active .booster-dock {
+    visibility: hidden;
+}
+
+.toolbar button:focus-visible,
+.deck-nav button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* Visible to screen readers only. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* ==========================================
@@ -198,8 +734,17 @@ body.grid-active .scroll-hint {
 @media (prefers-reduced-motion: reduce) {
     body,
     .view-toggle-btn,
-    .deck-container.grid-view tcg-card {
+    .deck-nav-step,
+    .deck-scrub-thumb,
+    .deck-scrub-fill,
+    .collection-tile,
+    .pack-mini {
         transition: none !important;
+    }
+
+    .booster-dock,
+    .collection-drawer[open] {
+        animation: none;
     }
 
     /* transition:none only removes the tween; the jump has to go too. */
