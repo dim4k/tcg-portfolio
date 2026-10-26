@@ -16,6 +16,17 @@ svg {
     transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease;
     cursor: default;
     user-select: none;
+    -webkit-user-select: none;
+    /* Text settings inherit through the shadow root: pin the ones the card is designed with,
+       or a card in a binder pocket (a button) or over the binder would set its text otherwise. */
+    font: 400 16px/normal "Lato", sans-serif;
+    color: #fff;
+    text-align: start;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-transform: none;
+    text-indent: 0;
+    white-space: normal;
 
     /* Paint order of the stacked layers, bottom to top. */
     --z-inner: 2;
@@ -105,6 +116,10 @@ svg {
 .card-border,
 .texture-overlay,
 .holo-overlay,
+.rare-foil,
+.rare-glitter,
+.gold-etch,
+.twinkles,
 .glare,
 .glitter-layer,
 .holographic-grid,
@@ -544,6 +559,10 @@ svg {
 .back-list {
     position: relative;
     flex: 1;
+    /* On the smallest screens a long verso scrolls instead of spilling out of the card. */
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     margin: 0;
     padding: 4px 16px;
     display: flex;
@@ -807,6 +826,29 @@ svg {
         font-size: 22px;
     }
 
+    /* A long verso (the Experience timeline) still fits a small phone's card. */
+    .back-inner {
+        padding: 16px;
+        gap: 10px;
+    }
+
+    .back-list {
+        padding: 2px 14px;
+    }
+
+    .back-item {
+        padding: 6px 0;
+    }
+
+    .back-item dt {
+        font-size: 10px;
+    }
+
+    .back-item dd {
+        font-size: 13px;
+        line-height: 1.3;
+    }
+
     .card-hp {
         font-size: 19px;
     }
@@ -883,6 +925,266 @@ svg {
 .action-btn:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
+}
+
+/* ==========================================
+   RARITIES (CONFIG.RARITIES, the `rarity` attribute)
+   The light follows --mx / --my, written by interactions.js; --glare-opacity says how much
+   the card is being moved. The light-shaped masks are twice the card's size and slide
+   against the light: their centre lands under it.
+   ========================================== */
+.rare-foil,
+.rare-glitter,
+.gold-etch,
+.twinkles {
+    display: none;
+}
+
+/* Rare and gold cards drop the common foil for their own. */
+:host([rarity]) .holo-overlay {
+    display: none;
+}
+
+/* Rare: rainbow foil over the whole card, its bands sliding with the light. */
+:host([rarity="rare"]) .rare-foil {
+    display: block;
+    z-index: var(--z-holo);
+    background-image: repeating-linear-gradient(
+            0deg,
+            hsl(2, 100%, 73%) 5%,
+            hsl(53, 100%, 69%) 10%,
+            hsl(93, 100%, 69%) 15%,
+            hsl(176, 100%, 76%) 20%,
+            hsl(228, 100%, 74%) 25%,
+            hsl(283, 100%, 73%) 30%,
+            hsl(2, 100%, 73%) 35%
+        ),
+        repeating-linear-gradient(
+            133deg,
+            #0e152e 0%,
+            hsl(180, 10%, 60%) 3.8%,
+            hsl(180, 29%, 66%) 4.5%,
+            hsl(180, 10%, 60%) 5.2%,
+            #0e152e 10%,
+            #0e152e 12%
+        ),
+        radial-gradient(
+            farthest-corner circle at var(--mx, 50%) var(--my, 50%),
+            rgba(0, 0, 0, 0.1) 12%,
+            rgba(0, 0, 0, 0.15) 20%,
+            rgba(0, 0, 0, 0.25) 120%
+        );
+    background-blend-mode: screen, hue, hard-light;
+    background-size: 200% 700%, 300% 100%, 200% 100%;
+    background-position: 0 var(--my, 50%), var(--mx, 50%) 0, center;
+    mix-blend-mode: color-dodge;
+    filter: brightness(0.52) contrast(1.5) saturate(1.3);
+    opacity: calc(0.5 + var(--glare-opacity, 0) * 0.4);
+}
+
+/* Its frame in rainbow foil: a rare shows even when still, even as a binder thumbnail. */
+:host([rarity="rare"]) .card-border {
+    background: linear-gradient(
+            115deg,
+            hsl(2, 100%, 73%),
+            hsl(53, 100%, 69%),
+            hsl(93, 100%, 69%),
+            hsl(176, 100%, 76%),
+            hsl(228, 100%, 74%),
+            hsl(283, 100%, 73%),
+            hsl(2, 100%, 73%)
+        )
+        var(--mx, 50%) 0 / 300% 100%;
+    filter: brightness(0.9) saturate(0.85);
+}
+
+/* An iridescent face, whatever the card's theme or brand: deep enough for the white text. */
+:host([rarity="rare"]) .card-inner,
+:host([rarity="rare"]) .back-inner {
+    background: linear-gradient(
+            125deg,
+            #4a2a7a,
+            #2a4f9a 18%,
+            #1f7272 34%,
+            #3f6a24 50%,
+            #7f5f1a 66%,
+            #82285a 82%,
+            #4a2a7a
+        )
+        var(--mx, 50%) var(--my, 50%) / 250% 250%;
+}
+
+/* Glitter printed on the card: it never moves, it only lights up where the light falls. */
+:host([rarity="rare"]) .rare-glitter {
+    display: block;
+    z-index: var(--z-glitter);
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='1' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 9 -6.2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")
+        0 0 / 170px;
+    -webkit-mask: radial-gradient(circle, #000 0, rgba(0, 0, 0, 0.35) 20%, rgba(0, 0, 0, 0.12) 38%)
+        calc(100% - var(--mx, 50%)) calc(100% - var(--my, 50%)) / 200% 200% no-repeat;
+    mask: radial-gradient(circle, #000 0, rgba(0, 0, 0, 0.35) 20%, rgba(0, 0, 0, 0.12) 38%)
+        calc(100% - var(--mx, 50%)) calc(100% - var(--my, 50%)) / 200% 200% no-repeat;
+    mix-blend-mode: color-dodge;
+    opacity: calc(0.45 + var(--glare-opacity, 0) * 0.45);
+}
+
+/* At rest, a rare breathes: the light circles slowly over it until someone moves the card. */
+:host([rarity="rare"][data-pos="0"]:not(:hover)) .rare-foil {
+    animation: rare-breathe-foil 11s ease-in-out infinite alternate;
+}
+
+:host([rarity="rare"][data-pos="0"]:not(:hover)) .rare-glitter {
+    animation: rare-breathe-glitter 11s ease-in-out infinite alternate;
+}
+
+@keyframes rare-breathe-foil {
+    0% {
+        background-position: 0 15%, 20% 0, center;
+    }
+    50% {
+        background-position: 0 70%, 80% 0, center;
+    }
+    100% {
+        background-position: 0 90%, 35% 0, center;
+    }
+}
+
+@keyframes rare-breathe-glitter {
+    0% {
+        -webkit-mask-position: 80% 85%;
+        mask-position: 80% 85%;
+    }
+    50% {
+        -webkit-mask-position: 20% 30%;
+        mask-position: 20% 30%;
+    }
+    100% {
+        -webkit-mask-position: 65% 10%;
+        mask-position: 65% 10%;
+    }
+}
+
+/* Gold: a gold frame, a dark gold face, the name in gold, engraved lines under the light. */
+:host([rarity="gold"]) .card-border {
+    background: linear-gradient(
+        115deg,
+        #6e5010,
+        #f3d27a 18%,
+        #a37a1f 32%,
+        #fff3c4 calc(var(--mx, 50%) * 0.3 + 31%),
+        #b8902e 60%,
+        #f6dc8a 78%,
+        #7a5a12
+    );
+    filter: none;
+}
+
+/* A gold face, whatever the card's theme or brand: brushed metal whose sheen follows the light.
+   The text stays white on the darker bands; the panels keep their own dark backing. */
+:host([rarity="gold"]) .card-inner,
+:host([rarity="gold"]) .back-inner {
+    background: linear-gradient(
+            125deg,
+            #5a420c,
+            #a37a1f 18%,
+            #e3c06a 34%,
+            #8f6a1a 50%,
+            #d4ad55 66%,
+            #7a5a12 82%,
+            #4e390a
+        )
+        var(--mx, 50%) var(--my, 50%) / 220% 220%;
+}
+
+:host([rarity="gold"]) .set-number {
+    color: #fff3c4;
+}
+
+/* The grey label above the name would be lost on the gold. */
+:host([rarity="gold"]) .stage-label {
+    color: #fff8e1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+:host([rarity="gold"]) .gold-etch {
+    display: block;
+    z-index: var(--z-holo);
+    background: repeating-linear-gradient(
+            45deg,
+            transparent 0 5px,
+            rgba(255, 228, 150, 0.9) 5px 6px
+        ),
+        repeating-linear-gradient(-45deg, transparent 0 5px, rgba(255, 228, 150, 0.9) 5px 6px);
+    -webkit-mask: radial-gradient(circle, #000 0, rgba(0, 0, 0, 0.25) 15%, transparent 31%)
+        calc(100% - var(--mx, 50%)) calc(100% - var(--my, 50%)) / 200% 200% no-repeat;
+    mask: radial-gradient(circle, #000 0, rgba(0, 0, 0, 0.25) 15%, transparent 31%)
+        calc(100% - var(--mx, 50%)) calc(100% - var(--my, 50%)) / 200% 200% no-repeat;
+    mix-blend-mode: color-dodge;
+    opacity: calc(0.4 + var(--glare-opacity, 0) * 0.5);
+}
+
+/* At rest, a gold sparkles: little four-point stars come and go. No blend mode on them:
+   animated over the card's blended foil, it would repaint the whole stack on every frame. */
+:host([rarity="gold"]) .twinkles {
+    display: block;
+    z-index: var(--z-shine);
+    overflow: hidden;
+}
+
+.twinkles i {
+    position: absolute;
+    width: 30px;
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    background: radial-gradient(closest-side, #fff8dc, rgba(255, 220, 140, 0) 70%);
+    clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%);
+    scale: 0;
+    animation: twinkle 3s ease-in-out infinite;
+}
+
+.twinkles i:nth-child(1) { left: 18%; top: 12%; animation-delay: -0.2s; }
+.twinkles i:nth-child(2) { left: 82%; top: 22%; animation-delay: -1.1s; animation-duration: 3.6s; }
+.twinkles i:nth-child(3) { left: 30%; top: 46%; animation-delay: -2.3s; animation-duration: 2.7s; }
+.twinkles i:nth-child(4) { left: 74%; top: 58%; animation-delay: -0.7s; animation-duration: 3.3s; }
+.twinkles i:nth-child(5) { left: 12%; top: 78%; animation-delay: -1.8s; }
+.twinkles i:nth-child(6) { left: 56%; top: 88%; animation-delay: -2.9s; animation-duration: 3.8s; }
+.twinkles i:nth-child(7) { left: 90%; top: 84%; animation-delay: -1.4s; animation-duration: 2.9s; }
+
+@keyframes twinkle {
+    0%,
+    70%,
+    100% {
+        scale: 0;
+        rotate: 0deg;
+    }
+    80% {
+        scale: 1;
+        rotate: 45deg;
+    }
+    90% {
+        scale: 0.2;
+        rotate: 90deg;
+    }
+}
+
+/* Out of sight or in a binder pocket: the finish stays, the animated layers go. */
+:host([data-behind]) .twinkles,
+:host([thumbnail]) .twinkles,
+:host([thumbnail]) .rare-glitter,
+:host([thumbnail]) .gold-etch {
+    display: none;
+}
+
+:host([thumbnail]) .rare-foil {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rare-foil,
+    .rare-glitter,
+    .twinkles i {
+        animation: none !important;
+    }
 }
 
 /* Respect users who prefer reduced motion */

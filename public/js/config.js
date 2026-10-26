@@ -22,6 +22,13 @@ export const CONFIG = {
     DRAG_ROTATION: 0.06,
     GYRO_SENSITIVITY: 0.5,
     GYRO_MAX_ROTATION: 15,
+    // Phone tilt (deg) that moves the light most of the way to the card's edge.
+    GYRO_LIGHT_RANGE: 20,
+    // How fast (ms) the rest position follows the way the phone is held: tilting moves the
+    // card, holding it differently does not leave it stuck in a corner.
+    GYRO_RECENTER: 2000,
+    // Share of the way to the new tilt covered on each frame: smooths the sensor's noise.
+    GYRO_SMOOTHING: 0.25,
     MOUSE_ROTATION_FACTOR: 10,
     // Tilt applied to the hovered card. The deck's own perspective lives in base.css.
     TILT_PERSPECTIVE: 1000,
@@ -37,6 +44,14 @@ export const CONFIG = {
     VIEW_TOGGLE: {
         deck: { icon: "book-open", label: "Binder" },
         binder: { icon: "layer-group", label: "Deck" },
+    },
+    // Card rarities, in rising order. A card gets one with `rarity: "rare"` or `rarity: "gold"`;
+    // without it, it is common. Each rarity has its own finish (tcg-card.css), a symbol before
+    // the collector number, and its reveal in the booster, where it comes out after the
+    // commons: the halo for a rare, the back cracking open for a gold.
+    RARITIES: {
+        rare: { label: "Rare", symbol: "★", reveal: "halo" },
+        gold: { label: "Gold", symbol: "★★", reveal: "cracks" },
     },
     SOCIAL: {
         linkedin: {
@@ -81,6 +96,7 @@ export const CONFIG = {
     //   icon     key of icons.js, shown on the deck dividers and the binder tabs
     //   booster  colours of the pack: `color` for the wrapper, `highlight` for its accents
     //   cards    full card data (see the README), or `projects`, printed by setCards()
+    // Any card or project can take a `rarity` (see RARITIES).
     SETS: [
         {
             id: "base",
@@ -94,6 +110,7 @@ export const CONFIG = {
                     // URL hash that opens the deck on this card, e.g. antoine.kim/#profile
                     slug: "profile",
                     theme: "fire",
+                    rarity: "gold",
                     header: {
                         stage: "Professional Profile",
                         name: "Antoine Kim",
@@ -133,6 +150,7 @@ export const CONFIG = {
                     id: 2,
                     slug: "stack",
                     theme: "psychic",
+                    rarity: "rare",
                     header: {
                         stage: "Core Competencies",
                         name: "Tech Stack",
@@ -174,7 +192,7 @@ export const CONFIG = {
                         stage: "Career",
                         name: "Experience",
                         hpLabel: "ROLES",
-                        hpValue: "4",
+                        hpValue: "5",
                     },
                     image: "public/img/experience.jpg",
                     body: {
@@ -185,12 +203,24 @@ export const CONFIG = {
                         },
                         row2: {
                             title: "Full Timeline",
-                            desc: "Roles, companies and projects, year by year.",
+                            desc: "Flip the card for the roles, year by year. Every detail on LinkedIn.",
                             actions: ["linkedin"],
                         },
                     },
                     footer: {
                         text: "Base: Nantes",
+                    },
+                    // The tech roles, most recent first (from the LinkedIn profile).
+                    back: {
+                        title: "Timeline",
+                        items: [
+                            { label: "2026 – now · Engineering Manager", text: "Recommerce. Gen AI across the dev cycle." },
+                            { label: "2024 – 2026 · Lead Dev Manager", text: "Recommerce. AI-assisted DX, AWS." },
+                            { label: "2020 – 2024 · Lead Developer", text: "Recommerce. Team of 8, Symfony APIs." },
+                            { label: "2017 – 2020 · Backend Developer", text: "Recommerce. Symfony, Zend, AWS Lambda." },
+                            { label: "2014 – 2017 · Full-stack Developer", text: "Groupe Zéphir. Java, PHP, Vue.js." },
+                            { label: "2011 – 2013 · Web Developer", text: "Internships. PHP, MySQL, Drupal." },
+                        ],
                     },
                 },
                 {
@@ -254,6 +284,8 @@ export const CONFIG = {
                         row2: {
                             title: "Creative Side",
                             desc: "Sharing moments through the lens, on two wheels.",
+                            // Opens this expansion's page in the binder.
+                            expansion: "off-the-clock",
                             actions: ["twitter", "instagram"],
                         },
                     },
@@ -263,7 +295,7 @@ export const CONFIG = {
                     back: {
                         title: "Off the Clock",
                         items: [
-                            { label: "Rides", text: "Cycling" },
+                            { label: "Rides", text: "Cycling, bikepacking" },
                             { label: "Shoots", text: "Photography" },
                             { label: "Watches", text: "Cinema" },
                             { label: "Home", text: "Nantes, art and industry" },
@@ -305,6 +337,7 @@ export const CONFIG = {
                     demo: "https://kimpay.io/",
                     source: "https://github.com/dim4k/kimpay",
                     brand: "#4f46e5",
+                    rarity: "gold",
                 },
                 mixera: {
                     slug: "mixera",
@@ -337,6 +370,7 @@ export const CONFIG = {
                     language: "JavaScript",
                     source: "https://github.com/dim4k/ezloc",
                     brand: "#0d9488",
+                    rarity: "rare",
                 },
                 cookim: {
                     slug: "cookim",
@@ -348,6 +382,7 @@ export const CONFIG = {
                     // Private repository: no source link, and no language on the card.
                     demo: "https://coo.kim/",
                     brand: "#e8552d",
+                    rarity: "rare",
                 },
                 tcgPortfolio: {
                     slug: "tcg-portfolio",
@@ -362,6 +397,117 @@ export const CONFIG = {
                     brand: "#7c3aed",
                 },
             },
+        },
+        {
+            id: "off-the-clock",
+            code: "OC",
+            name: "Off the Clock",
+            icon: "camera",
+            booster: { color: "#0f4c46", highlight: "#ffb05c" },
+            // Life outside work.
+            cards: [
+                {
+                    id: 1,
+                    slug: "cycling",
+                    theme: "grass",
+                    rarity: "gold",
+                    header: { stage: "Off the Clock", name: "Cycling", hpLabel: "NO.", hpValue: "01" },
+                    image: "public/img/off-the-clock/cycling.jpg",
+                    body: {
+                        row1: {
+                            title: "Bikepacking",
+                            desc: "Bags strapped to the bike and a few days on the road, from Nantes to wherever it leads.",
+                            icon: "bicycle",
+                        },
+                        row2: {
+                            title: "Ride Along",
+                            desc: "Rides, and the stops along the way.",
+                            actions: ["instagram"],
+                        },
+                    },
+                    footer: { text: "Base: Nantes" },
+                },
+                {
+                    id: 2,
+                    slug: "photography",
+                    theme: "electric",
+                    rarity: "rare",
+                    header: { stage: "Off the Clock", name: "Photography", hpLabel: "NO.", hpValue: "02" },
+                    image: "public/img/off-the-clock/photography.jpg",
+                    body: {
+                        row1: {
+                            title: "Through the Lens",
+                            desc: "Sharing moments through the lens, on two wheels.",
+                            icon: "camera",
+                        },
+                        row2: {
+                            title: "See the Shots",
+                            desc: "",
+                            actions: ["instagram"],
+                        },
+                    },
+                    footer: { text: "Shared on Instagram" },
+                },
+                {
+                    id: 3,
+                    slug: "cinema",
+                    theme: "psychic",
+                    header: { stage: "Off the Clock", name: "Cinema", hpLabel: "NO.", hpValue: "03" },
+                    image: "public/img/off-the-clock/cinema.jpg",
+                    body: {
+                        row1: {
+                            title: "The Big Screen",
+                            desc: "A dark room, a big screen, and a story that stays with you after the credits.",
+                            icon: "film",
+                        },
+                        row2: {
+                            title: "Talk Films",
+                            desc: "Always up for a recommendation, given or taken.",
+                            actions: ["twitter"],
+                        },
+                    },
+                    footer: { text: "Off the Clock" },
+                },
+                {
+                    id: 4,
+                    slug: "nantes",
+                    theme: "ice",
+                    header: { stage: "Off the Clock", name: "Nantes", hpLabel: "NO.", hpValue: "04" },
+                    image: "public/img/elephant.jpg",
+                    body: {
+                        row1: {
+                            title: "Art & Industry",
+                            desc: "Old shipyards turned into playgrounds, and a mechanical elephant walking the Île de Nantes.",
+                            icon: "map-location-dot",
+                        },
+                        row2: {
+                            title: "Home Base",
+                            desc: "Where I live, work and ride.",
+                        },
+                    },
+                    footer: { text: "Base: Nantes" },
+                },
+                {
+                    id: 5,
+                    slug: "follow",
+                    theme: "fire",
+                    header: { stage: "Off the Clock", name: "Follow Along", hpLabel: "NO.", hpValue: "05" },
+                    image: "public/img/off-the-clock/follow.jpg",
+                    body: {
+                        row1: {
+                            title: "Rides, Shots & Films",
+                            desc: "What I get up to off the clock, shared as it happens.",
+                            icon: "heart",
+                        },
+                        row2: {
+                            title: "Find Me",
+                            desc: "",
+                            actions: ["twitter", "instagram"],
+                        },
+                    },
+                    footer: { text: "Speaks: FR / EN" },
+                },
+            ],
         },
     ],
 };

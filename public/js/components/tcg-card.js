@@ -54,8 +54,12 @@ template.innerHTML = `
         <div class="texture-overlay"></div>
         <div class="holographic-grid"></div>
         <div class="holo-overlay"></div>
+        <div class="rare-foil"></div>
+        <div class="rare-glitter"></div>
+        <div class="gold-etch"></div>
         <div class="glare"></div>
         <div class="glitter-layer"></div>
+        <div class="twinkles"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="shine"></div>
     </div>
 
@@ -232,14 +236,16 @@ class TcgCard extends HTMLElement {
 
         if (data.theme) this.setAttribute("theme", data.theme);
         if (data.brand) this.applyBrand(data.brand);
+        // Rare and gold cards wear their own finish (tcg-card.css).
+        const rarity = CONFIG.RARITIES[data.rarity];
+        if (rarity) this.setAttribute("rarity", data.rarity);
+        else this.removeAttribute("rarity");
         this.setAttribute("data-id", data.id);
         this.setAttribute("role", "group");
         this.setAttribute("aria-roledescription", "card");
         this.setAttribute(
             "aria-label",
-            data.setLabel
-                ? `${data.header.name}, ${data.setLabel}`
-                : data.header.name
+            [data.header.name, data.setLabel, rarity?.label].filter(Boolean).join(", ")
         );
 
         this.renderHeader(data);
@@ -344,6 +350,8 @@ class TcgCard extends HTMLElement {
         a.className = "action-btn";
         a.target = "_blank";
         a.rel = "noopener noreferrer";
+        // Not draggable: a press on a link must be able to grab the card (card-drag.js).
+        a.draggable = false;
         if (entry.brand) a.style.setProperty("--brand", entry.brand);
         a.append(icon(entry.icon), ` ${entry.label}`);
 
@@ -408,9 +416,11 @@ class TcgCard extends HTMLElement {
     renderFooter(data) {
         this.shadowRoot.querySelector(".weakness").textContent =
             data.footer.text;
+        const symbol = CONFIG.RARITIES[data.rarity]?.symbol;
+        const label = [symbol, data.setLabel].filter(Boolean).join(" ");
         this.shadowRoot
             .querySelectorAll(".set-number")
-            .forEach((el) => (el.textContent = data.setLabel || ""));
+            .forEach((el) => (el.textContent = label));
     }
 
     renderBack(data) {

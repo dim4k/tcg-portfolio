@@ -69,6 +69,8 @@ export class SwirlBackground {
             psychic: { base: 270, range: 40, saturated: true }, // Purple
             grass: { base: 120, range: 40, saturated: true }, // Green
             ice: { base: 190, range: 40, saturated: true }, // Cyan-Blue
+            gold: { base: 36, range: 20, saturated: true }, // Amber-Gold, behind a gold card
+            rare: { base: 0, range: 360, saturated: true }, // Every hue, behind a rare card
             default: { base: 220, range: 100, saturated: true }, // Blue-Purple
         };
 

@@ -39,6 +39,30 @@ export function pointerTilt(card, rect, clientX, clientY) {
     });
 }
 
+/** Shortest signed difference between two angles, in degrees: never more than 180 either way. */
+function angleDelta(a, b) {
+    return ((((a - b + 180) % 360) + 360) % 360) - 180;
+}
+
+/** Eases towards ±max instead of stopping dead at it, so the tilt never sticks at an edge. */
+function soft(value, max) {
+    return max * Math.tanh(value / max);
+}
+
+/**
+ * Front-to-back (x) and side-to-side (y) tilt of the phone as its screen is held: the
+ * sensor's axes are the device's, so they swap in landscape. Null when the reading is no
+ * good: held upright, side-to-side tilt flips around at random.
+ */
+function screenTilt({ beta, gamma }) {
+    if (beta == null || gamma == null) return null;
+    const angle = (((screen.orientation?.angle ?? window.orientation ?? 0) % 360) + 360) % 360;
+    if (angle === 90) return { x: -gamma, y: beta };
+    if (angle === 270) return { x: gamma, y: -beta };
+    if (Math.abs(beta) > 85) return null;
+    return angle === 180 ? { x: -beta, y: -gamma } : { x: beta, y: gamma };
+}
+
 export function resetTilt(card) {
     card.style.transform = "";
     setCardVars(card, { mx: 50, my: 50, glare: 0 });
@@ -59,8 +83,9 @@ export class InteractionManager {
         this.wheelResetTimer = null;
         this.state = {
             isMobile: Utils.isMobile(),
-            gyroBase: { beta: 0, gamma: 0 },
-            gyroInitialized: false,
+            // The phone's rest position (null until its first reading), the time of the last
+            // reading, and the smoothed tilt away from rest.
+            gyro: { base: null, t: 0, x: 0, y: 0 },
         };
 
         this.elements = {
@@ -71,10 +96,11 @@ export class InteractionManager {
         this.syncMobileFeatures();
     }
 
-    // Tilt must leave the card alone while it is held, thrown, or behind the binder.
+    // Tilt must leave the card alone while it is held, thrown, or behind the binder; a card
+    // taken out of a binder pocket gets it instead.
     get isBusy() {
         const deck = this.deckManager;
-        return deck.isAnimating || deck.isDragging || deck.isBinderOpen;
+        return deck.isAnimating || deck.isDragging || (deck.isBinderOpen && !deck.peekCard);
     }
 
     bindEvents() {
@@ -85,6 +111,10 @@ export class InteractionManager {
         this.elements.deckContainer.addEventListener("mouseleave", () =>
             this.handleMouseLeave()
         );
+        // The card taken out of a binder pocket follows the pointer the same way.
+        const peekSlot = document.getElementById("binder-peek-card");
+        peekSlot?.addEventListener("mousemove", (e) => this.handleMouseMove(e));
+        peekSlot?.addEventListener("mouseleave", () => this.handleMouseLeave());
 
         // Scroll (passive: we never call preventDefault here)
         window.addEventListener("wheel", (e) => this.handleWheel(e), {
@@ -117,7 +147,7 @@ export class InteractionManager {
     }
 
     getActiveCard() {
-        return this.deckManager.cards[0] || null;
+        return this.deckManager.peekCard || this.deckManager.cards[0] || null;
     }
 
     invalidateRect() {
@@ -126,15 +156,16 @@ export class InteractionManager {
 
     /**
      * Measuring inside the frame callback would force a synchronous layout, because the previous
-     * frame just wrote a transform on this very element. The active card is inset into the
-     * container, so the container's box is the card's untransformed box.
+     * frame just wrote a transform on this very element. The active card is inset into its
+     * container (the deck, or the binder's peek slot), so the container's box is the card's
+     * untransformed box.
      */
     getCardRect(card) {
         const cache = this.rectCache;
 
         if (cache.card !== card) {
             cache.card = card;
-            cache.rect = this.elements.deckContainer.getBoundingClientRect();
+            cache.rect = card.parentElement.getBoundingClientRect();
         }
         return cache.rect;
     }
@@ -249,48 +280,45 @@ export class InteractionManager {
         const activeCard = this.getActiveCard();
         if (!activeCard || this.isBusy) return;
 
-        if (!this.state.gyroInitialized) {
-            this.state.gyroBase.beta = event.beta || 0;
-            this.state.gyroBase.gamma = event.gamma || 0;
-            this.state.gyroInitialized = true;
+        const tilt = screenTilt(event);
+        if (!tilt) return;
+
+        const gyro = this.state.gyro;
+        if (!gyro.base) {
+            gyro.base = tilt;
+            gyro.t = event.timeStamp;
             return;
         }
 
+        // The rest position drifts towards the way the phone is held now: a tilt moves the
+        // card, a new grip slowly becomes the new rest. After a pause (a drag, the binder),
+        // the drift has had time to catch up, and the card starts again from the middle.
+        const dt = Math.max(0, event.timeStamp - gyro.t);
+        gyro.t = event.timeStamp;
+        const dx = angleDelta(tilt.x, gyro.base.x);
+        const dy = angleDelta(tilt.y, gyro.base.y);
+        const follow = 1 - Math.exp(-dt / CONFIG.GYRO_RECENTER);
+        gyro.base.x += dx * follow;
+        gyro.base.y += dy * follow;
+
         // iOS fires this at up to 60Hz; batch the DOM writes like the pointer path.
-        this.scheduleFrame(
-            activeCard,
-            "tilt",
-            event.beta || 0,
-            event.gamma || 0
-        );
+        this.scheduleFrame(activeCard, "tilt", dx, dy);
     }
 
-    applyOrientation(card, beta, gamma) {
+    /** @param {number} dx @param {number} dy Tilt (deg) away from the rest position. */
+    applyOrientation(card, dx, dy) {
         if (Utils.prefersReducedMotion()) return;
 
-        const relativeBeta = beta - this.state.gyroBase.beta;
-        const relativeGamma = gamma - this.state.gyroBase.gamma;
-
-        const rotateX = Utils.clamp(
-            relativeBeta * CONFIG.GYRO_SENSITIVITY,
-            -CONFIG.GYRO_MAX_ROTATION,
-            CONFIG.GYRO_MAX_ROTATION
-        );
-        const rotateY = Utils.clamp(
-            relativeGamma * CONFIG.GYRO_SENSITIVITY,
-            -CONFIG.GYRO_MAX_ROTATION,
-            CONFIG.GYRO_MAX_ROTATION
-        );
-
-        const pctX = Utils.clamp(50 + relativeGamma * 2, 0, 100);
-        const pctY = Utils.clamp(50 + relativeBeta * 2, 0, 100);
+        const gyro = this.state.gyro;
+        gyro.x += (dx - gyro.x) * CONFIG.GYRO_SMOOTHING;
+        gyro.y += (dy - gyro.y) * CONFIG.GYRO_SMOOTHING;
 
         applyTilt(card, {
-            rotateX: -rotateX,
-            rotateY,
+            rotateX: -soft(gyro.x * CONFIG.GYRO_SENSITIVITY, CONFIG.GYRO_MAX_ROTATION),
+            rotateY: soft(gyro.y * CONFIG.GYRO_SENSITIVITY, CONFIG.GYRO_MAX_ROTATION),
             glare: CONFIG.GLARE_GYRO,
-            mx: pctX,
-            my: pctY,
+            mx: 50 + 50 * Math.tanh(gyro.y / CONFIG.GYRO_LIGHT_RANGE),
+            my: 50 + 50 * Math.tanh(gyro.x / CONFIG.GYRO_LIGHT_RANGE),
         });
     }
 
@@ -335,6 +363,6 @@ export class InteractionManager {
             this.orientationHandler
         );
         this.orientationHandler = null;
-        this.state.gyroInitialized = false;
+        this.state.gyro.base = null;
     }
 }
