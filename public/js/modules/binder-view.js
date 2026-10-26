@@ -5,6 +5,8 @@ import { packMarkup, packStyle } from "./booster-pack.js";
 import { followPointer, grabFromControl, isThrow, pressedControl } from "./card-drag.js";
 import { resetTilt } from "./interactions.js";
 import { Utils } from "./utils.js";
+import { Collection } from "./collection.js";
+import { localizeSet, t } from "../i18n.js";
 
 // Natural size a thumbnail is laid out at before being scaled into its pocket.
 // Keep in sync with --thumb-w / --thumb-h in binder.css.
@@ -58,6 +60,7 @@ export class BinderView {
         this.nav = this.root.querySelector(".binder-nav");
         this.peekEl = document.getElementById("binder-peek");
         this.peekSlot = document.getElementById("binder-peek-card");
+        this.toolbar = document.querySelector(".toolbar");
         // The card out of its pocket: { pocket, set, index, card }, and the drag holding it.
         this.peeking = null;
         this.peekDrag = null;
@@ -84,6 +87,15 @@ export class BinderView {
         document.addEventListener("open-booster", () => this.close());
         // Opened boosters fill pockets: rebuild on the next opening.
         document.addEventListener("deck-cards-change", () => {
+            this.stale = true;
+            this.syncBoosters();
+        });
+        // Seen cards lose their "new" mark, and seeing them all brings the secret set in. While
+        // the binder is open, the pocket taken out updates itself (peek): no rebuild under it.
+        document.addEventListener("card-seen", () => {
+            if (!this.isOpen) this.stale = true;
+        });
+        document.addEventListener("collection-complete", () => {
             this.stale = true;
             this.syncBoosters();
         });
@@ -133,6 +145,8 @@ export class BinderView {
         if (!this.isOpen) return;
         this.dropPeek();
         this.isOpen = false;
+        // The counts on the cover and the dividers may have moved with the cards looked at.
+        this.stale = true;
         this.root.hidden = true;
         this.deckManager.setBinderOpen(false);
         this.syncToggle();
@@ -141,13 +155,15 @@ export class BinderView {
 
     /** The toolbar reminder of the boosters still sealed, shown in the binder view only. */
     syncBoosters() {
-        const sealed = CONFIG.SETS.filter((set) => !this.deckManager.has(set));
+        const sealed = Collection.sets().filter((set) => !this.deckManager.has(set));
         this.boostersBtn.hidden = sealed.length === 0;
         if (!sealed.length) return;
         this.boostersBtn.querySelector(".collection-badge").textContent = sealed.length;
         this.boostersBtn.setAttribute(
             "aria-label",
-            sealed.length > 1 ? `Open a booster, ${sealed.length} left` : `Open the ${sealed[0].name} booster`
+            sealed.length > 1
+                ? t("dock.openSeveral", { n: sealed.length })
+                : t("dock.openOne", { name: localizeSet(sealed[0]).name })
         );
         this.boostersBtn.querySelector(".booster-btn-packs").replaceChildren(
             ...sealed.slice(0, 2).map((set) => {
@@ -166,7 +182,7 @@ export class BinderView {
             ? CONFIG.VIEW_TOGGLE.binder
             : CONFIG.VIEW_TOGGLE.deck;
         this.toggleBtn.querySelector("svg")?.replaceWith(icon(state.icon));
-        this.toggleBtn.querySelector("span").textContent = state.label;
+        this.toggleBtn.querySelector("span").textContent = t(state.label);
         this.toggleBtn.setAttribute("aria-pressed", String(this.isOpen));
     }
 
@@ -186,7 +202,7 @@ export class BinderView {
     /** The cover, then each set: its divider and as many sheets as its cards need. */
     listPages() {
         const pages = [{ kind: "cover" }];
-        CONFIG.SETS.forEach((set) => {
+        Collection.sets().forEach((set) => {
             const cards = setCards(set);
             pages.push({ kind: "divider", set, cards });
             for (let from = 0; from < cards.length; from += POCKETS) {
@@ -277,19 +293,23 @@ export class BinderView {
         const deck = this.deckManager;
 
         if (page.kind === "cover") {
-            const owned = deck.opened.reduce((n, set) => n + setCards(set).length, 0);
-            const all = CONFIG.SETS.reduce((n, set) => n + setCards(set).length, 0);
             el.innerHTML = `
                 <span class="cover-spine"></span>
                 <span class="cover-eyebrow">TCG Portfolio</span>
-                <span class="cover-title">Collection</span>
-                <span class="cover-count">${owned} / ${all} cards · ${CONFIG.SETS.length} sets</span>`;
+                <span class="cover-title"></span>
+                <span class="cover-count"></span>`;
+            el.querySelector(".cover-title").textContent = t("binder.cover");
+            el.querySelector(".cover-count").textContent = t("binder.coverCount", {
+                ...Collection.progress(),
+                n: Collection.sets().length,
+            });
             return el;
         }
         if (page.kind === "back" || page.kind === "verso") return el;
 
         const { set, cards } = page;
         const open = deck.has(set);
+        const { name } = localizeSet(set);
         el.style.setProperty("--set-color", set.booster.color);
         el.style.setProperty("--set-highlight", set.booster.highlight);
 
@@ -297,21 +317,22 @@ export class BinderView {
             const series = String(CONFIG.SETS.indexOf(set) + 1).padStart(2, "0");
             el.innerHTML = `
                 <span class="divider-code"></span>
-                <span class="divider-series">Series ${series}</span>
+                <span class="divider-series"></span>
                 <h2 class="divider-name"></h2>
                 <span class="divider-state"></span>`;
             el.querySelector(".divider-code").textContent = set.code;
-            el.querySelector(".divider-name").textContent = set.name;
+            el.querySelector(".divider-series").textContent = t("binder.series", { n: series });
+            el.querySelector(".divider-name").textContent = name;
             const state = el.querySelector(".divider-state");
             state.textContent = open
-                ? `${cards.length} / ${cards.length} collected`
-                : `Sealed · ${cards.length} cards`;
+                ? t("binder.dividerSeen", { seen: Collection.seenIn(set), total: cards.length })
+                : t("binder.dividerSealed", { n: cards.length });
             if (!open) {
                 const btn = document.createElement("button");
                 btn.type = "button";
                 btn.className = "divider-open";
                 btn.dataset.open = set.id;
-                btn.textContent = "Open the booster";
+                btn.textContent = t("binder.openBooster");
                 state.append(btn);
             }
             return el;
@@ -320,7 +341,7 @@ export class BinderView {
         const head = document.createElement("header");
         head.className = "sheet-head";
         head.innerHTML = "<h2></h2><span></span>";
-        head.querySelector("h2").textContent = set.name;
+        head.querySelector("h2").textContent = name;
         head.querySelector("span").textContent = set.code;
 
         const grid = document.createElement("div");
@@ -356,7 +377,22 @@ export class BinderView {
         pocket.className = "pocket";
         pocket.dataset.set = set.id;
         pocket.dataset.index = i;
-        pocket.setAttribute("aria-label", `${data.header.name}, ${data.setLabel}`);
+        // Never looked at yet: a "new" mark on the sleeve, until it is.
+        const unseen = !Collection.hasSeen(data.slug);
+        pocket.classList.toggle("is-new", unseen);
+        pocket.setAttribute(
+            "aria-label",
+            unseen
+                ? t("binder.pocketNew", { name: data.header.name, number: data.setLabel })
+                : `${data.header.name}, ${data.setLabel}`
+        );
+        if (unseen) {
+            const mark = document.createElement("span");
+            mark.className = "pocket-new";
+            mark.setAttribute("aria-hidden", "true");
+            mark.textContent = t("binder.new");
+            pocket.append(mark);
+        }
 
         const card = document.createElement("tcg-card");
         card.setAttribute("thumbnail", "");
@@ -369,9 +405,10 @@ export class BinderView {
     }
 
     buildTabs() {
-        const tabs = CONFIG.SETS.map((set) => {
+        const tabs = Collection.sets().map((set) => {
             const at = this.pages.findIndex((p) => p.kind === "divider" && p.set === set);
             const open = this.deckManager.has(set);
+            const { name: setName } = localizeSet(set);
             const tab = document.createElement("button");
             tab.type = "button";
             tab.className = "binder-tab";
@@ -381,10 +418,10 @@ export class BinderView {
             // Rank, for the tabs coming back out one after the other.
             tab.style.setProperty("--i", CONFIG.SETS.indexOf(set));
             tab.classList.toggle("is-sealed", !open);
-            tab.setAttribute("aria-label", `${set.name}${open ? "" : ", sealed"}`);
+            tab.setAttribute("aria-label", open ? setName : t("binder.tabSealed", { name: setName }));
             tab.append(icon(open ? set.icon : "lock"));
             const name = document.createElement("span");
-            name.textContent = this.mode === "spread" ? set.name : set.code;
+            name.textContent = this.mode === "spread" ? setName : set.code;
             tab.append(name);
             return tab;
         });
@@ -695,9 +732,16 @@ export class BinderView {
         this.peeking = peeking;
 
         this.peekEl.hidden = false;
+        // A modal: nothing behind it takes focus, the toolbar included.
         this.stage.inert = true;
         this.nav.inert = true;
+        this.toolbar.inert = true;
         pocket.classList.add("is-out");
+        // Taken out of its pocket: it counts as seen, and its sleeve loses the "new" mark.
+        Collection.markSeen(card.data.slug);
+        pocket.classList.remove("is-new");
+        pocket.querySelector(".pocket-new")?.remove();
+        pocket.setAttribute("aria-label", `${card.data.header.name}, ${card.data.setLabel}`);
         this.peekEl.querySelector('[data-peek="deck"]').focus({ preventScroll: true });
         // Once it has landed, it answers the pointer and the gyroscope like the front card.
         this.flyPeek(pocket, false).then(() => {
@@ -738,6 +782,7 @@ export class BinderView {
         this.peekSlot.replaceChildren();
         this.stage.inert = false;
         this.nav.inert = false;
+        this.toolbar.inert = false;
     }
 
     /** Fly the card between its pocket and the middle of the screen. */

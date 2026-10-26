@@ -1,4 +1,5 @@
 import { CONFIG } from "../config.js";
+import { localizeCard, localizeProject, localizeSet, t } from "../i18n.js";
 
 const pad = (n, width) => String(n).padStart(width, "0");
 
@@ -10,13 +11,14 @@ export function setLabel(index, total, code = "") {
 }
 
 /**
- * Card data for every card of a set; projects are printed in the same shape as `cards`.
- * Each card also carries `setId`, since the deck mixes the cards of several sets.
+ * Card data for every card of a set, in the visitor's language; projects are printed in the
+ * same shape as `cards`. Each card also carries `setId`, since the deck mixes the cards of
+ * several sets.
  */
 export function setCards(set) {
     if (set.cards) {
         return set.cards.map((data, index) => ({
-            ...data,
+            ...localizeCard(set, data),
             setId: set.id,
             setLabel: setLabel(index, set.cards.length, set.code),
         }));
@@ -25,13 +27,14 @@ export function setCards(set) {
     const projects = Object.entries(set.projects);
     const total = projects.length;
 
-    return projects.map(([key, project], index) => {
+    return projects.map(([key, entry], index) => {
+        const project = localizeProject(set, key, entry);
         const links = [];
         if (project.demo) {
             links.push({
                 url: project.demo,
                 icon: "up-right-from-square",
-                label: "Live demo",
+                label: t("card.demo"),
                 brand: project.brand,
             });
         }
@@ -39,7 +42,7 @@ export function setCards(set) {
             links.push({
                 url: project.source,
                 icon: "code",
-                label: "Source",
+                label: t("card.source"),
                 brand: project.brand,
             });
         }
@@ -51,9 +54,9 @@ export function setCards(set) {
             brand: project.brand,
             rarity: project.rarity,
             header: {
-                stage: set.name,
+                stage: localizeSet(set).name,
                 name: project.label,
-                hpLabel: "NO.",
+                hpLabel: t("card.number"),
                 hpValue: pad(index + 1, 2),
             },
             ...(project.image ? { image: project.image } : { art: { icon: project.icon } }),
@@ -63,9 +66,13 @@ export function setCards(set) {
                     desc: project.about || "",
                     icon: project.icon,
                 },
-                row2: { title: "Try It", links },
+                row2: { title: t("card.tryIt"), links },
             },
-            footer: { text: project.language ? `Built with ${project.language}` : "Private source" },
+            footer: {
+                text: project.language
+                    ? t("card.builtWith", { language: project.language })
+                    : t("card.privateSource"),
+            },
             setLabel: setLabel(index, total, set.code),
         };
     });

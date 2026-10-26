@@ -1,4 +1,5 @@
 import { findSlug } from "./card-renderer.js";
+import { Collection } from "./collection.js";
 
 /**
  * antoine.kim/#projects opens the deck on the Projects card, #kimpay on a card of After Hours
@@ -7,10 +8,14 @@ import { findSlug } from "./card-renderer.js";
  * five cards must not take five presses of Back to leave the site.
  */
 export class DeepLink {
-    /** The set and card named by the current hash, or null. */
+    /**
+     * The set and card named by the current hash, or null. A secret card stays secret until
+     * the visitor has unlocked it: a link to it opens nothing.
+     */
     static fromHash() {
         const slug = decodeURIComponent(window.location.hash.slice(1));
-        return slug ? findSlug(slug) : null;
+        const target = slug ? findSlug(slug) : null;
+        return target && Collection.isAvailable(target.set) ? target : null;
     }
 
     constructor(deckManager) {

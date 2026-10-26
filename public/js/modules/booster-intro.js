@@ -3,6 +3,9 @@ import { Utils } from "./utils.js";
 import { setCards } from "./card-renderer.js";
 import { BoosterFx } from "./booster-fx.js";
 import { packMarkup, packStyle } from "./booster-pack.js";
+import { Collection } from "./collection.js";
+import { setCardVars } from "./interactions.js";
+import { localizeSet, rarityLabel, t } from "../i18n.js";
 
 // A stroke this long (share of the pack width), counted from where it met the pack, cuts it.
 const CUT_LENGTH = 0.5;
@@ -14,8 +17,8 @@ const CUT_SETTLE = 140;
 const HALF_FLIGHT = 950;
 // Reveal: the cards rise out of the pack (one after the other from the bottom of the
 // stack), each turn takes two halves, a rare shakes before it turns, a gold's back cracks
-// then bursts into shards, a card flies into Collection, and a skip sends the rest one
-// after the other.
+// then bursts into shards, the card turns in the light while its shine sweeps across, then
+// flies into Collection on its own, and a skip sends the rest one after the other.
 const RISE = 620;
 const RISE_STAGGER = 45;
 const FLIP_HALF = 210;
@@ -26,6 +29,21 @@ const CRACK_STAGGER = 90;
 const SHARD_FLIGHT = 700;
 // Cracks across a gold's back, from near its middle out to its edges, one shard between two.
 const CRACKS = 8;
+// A secret's supernova: drawn back, spinning faster and faster as its back fills with light,
+// then the blast and the card landing face up.
+const NOVA_WIND = 450;
+const NOVA_SPIN = 1150;
+const NOVA_TURNS = 3;
+const NOVA_LAND = 560;
+// The look at a card once it shows, picked up and turned in the hand, and the beat before
+// it goes; a rare or a gold stays a little longer. A tap cuts both short.
+const INSPECT = 1000;
+const INSPECT_HOLD = 80;
+const RARE_HOLD = 400;
+// How much closer it comes (capped by the viewport share below), and how far it turns (deg).
+const INSPECT_CLOSER = 1.25;
+const INSPECT_FIT = 0.9;
+const INSPECT_TILT = 16;
 const TO_COLLECTION = 640;
 const FLUSH_STAGGER = 70;
 // A revealed card is at most this share of the viewport width, and of the pack's height.
@@ -39,12 +57,17 @@ const MAX_TILT = 10;
 const PICK_COLUMNS_NARROW = 3;
 const PICK_COLUMNS_WIDE = 5;
 const PICK_WIDE_FROM = 700;
+// Below this width (keep in sync with the carousel styles in index.html), several packs to
+// pick from are a carousel instead: one large in the middle, its neighbours peeking out.
+const CAROUSEL_BELOW = 600;
+// Horizontal travel (px) that turns the carousel by one pack.
+const SWIPE_DISTANCE = 40;
 // Mini packs stacked in the dock, however many boosters are left.
 const DOCK_STACK = 3;
 
 const HINTS = {
-    pick: "Pick a booster",
-    focus: "Slice the pack, any direction",
+    pick: "booster.pick",
+    focus: "booster.focus",
 };
 
 /** Midpoints of a card shaking harder and harder in place, growing by `grow` a step. */
@@ -62,8 +85,8 @@ function trembling(scale, amplitude, grow) {
 }
 
 /** A card of the reveal, placed from the middle of the pack: offset, scale, tilt, turn. */
-const pose = ({ x = 0, y = 0, s = 1, r = 0, ry = 0 }) =>
-    `translate(${x}px, ${y}px) rotate(${r}deg) rotateY(${ry}deg) scale(${s})`;
+const pose = ({ x = 0, y = 0, s = 1, r = 0, rx = 0, ry = 0 }) =>
+    `translate(${x}px, ${y}px) rotate(${r}deg) rotateX(${rx}deg) rotateY(${ry}deg) scale(${s})`;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const inRect = (p, r) =>
@@ -98,8 +121,8 @@ function clipPolygon(points, side) {
 /**
  * The boosters: one sealed pack per set of CONFIG.SETS. The first visit opens on all of them;
  * pick one and slice it open with a stroke in any direction. Its cards come out face down:
- * a tap turns the top one over, another sends it into the Collection button. The rare and
- * gold cards of CONFIG.RARITIES come last, each with its own reveal.
+ * a tap turns the top one over, which then flies into the Collection button. The rare,
+ * gold and secret cards of CONFIG.RARITIES come last, each with its own reveal.
  * Packs still sealed wait in the dock above the deck navigation, and open the same way.
  */
 export class BoosterIntro {
@@ -153,18 +176,42 @@ export class BoosterIntro {
     }
 
     pack(id = this.target) {
-        return this.slots.get(id)?.querySelector(".pack:not(.pack-half)");
+        return this.slots.get(id)?.querySelector(".pack:not(.pack-half, .pack-copy)");
     }
 
-    /** Sets whose booster is still sealed. */
+    /** The lobby's spotlight takes the colour of the pack `id`. */
+    light(id) {
+        const set = CONFIG.SETS.find((s) => s.id === id);
+        if (set) this.loader.style.setProperty("--light", set.booster.highlight);
+    }
+
+    /**
+     * The pool of light lies on the floor the packs stand on: the bottom of the stage, once
+     * the layout has settled (the stage resizes with the phase).
+     */
+    placeFloor() {
+        cancelAnimationFrame(this.floorFrame);
+        this.floorFrame = requestAnimationFrame(() => {
+            const stage = this.booster.querySelector(".booster-stage").getBoundingClientRect();
+            if (stage.height) this.loader.style.setProperty("--floor", `${Math.round(stage.bottom)}px`);
+        });
+    }
+
+    /** Sets on offer whose booster is still sealed (the secret ones only once unlocked). */
     sealed() {
-        return CONFIG.SETS.filter((set) => !this.deckManager.has(set));
+        return Collection.sets().filter((set) => !this.deckManager.has(set));
+    }
+
+    /** Whether the packs to pick from are laid out as a carousel (narrow screens). */
+    get isCarousel() {
+        return this.booster.dataset.layout === "carousel";
     }
 
     buildPacks() {
         const stage = this.booster.querySelector(".booster-stage");
         const slots = new Map();
         CONFIG.SETS.forEach((set) => {
+            const { name, tagline } = localizeSet(set);
             const slot = document.createElement("div");
             slot.className = "pack-slot";
             slot.dataset.pack = set.id;
@@ -178,12 +225,34 @@ export class BoosterIntro {
             pack.setAttribute("aria-describedby", "booster-hint");
             pack.setAttribute(
                 "aria-label",
-                `${set.name} booster, ${setCards(set).length} cards`
+                [t("booster.label", { name, n: setCards(set).length }), tagline]
+                    .filter(Boolean)
+                    .join(", ")
             );
             pack.innerHTML = `${packMarkup(set)}<span class="pack-ghost"></span>`;
 
-            bob.append(pack);
-            slot.append(bob);
+            // What is inside, under the pack while picking (the pack's label says it too).
+            const caption = document.createElement("span");
+            caption.className = "pack-tagline";
+            caption.setAttribute("aria-hidden", "true");
+            caption.textContent = tagline;
+            // Added since the visitor's last visit.
+            const ribbon = document.createElement("span");
+            ribbon.className = "new-ribbon";
+            ribbon.setAttribute("aria-hidden", "true");
+            ribbon.textContent = t("booster.new");
+
+            // It stands on a pool of its colour, its reflection on the floor below (a still,
+            // decorative copy of the pack).
+            const glow = document.createElement("span");
+            glow.className = "pack-glow";
+            const mirror = document.createElement("span");
+            mirror.className = "pack-mirror";
+            mirror.setAttribute("aria-hidden", "true");
+            mirror.innerHTML = `<span class="pack pack-copy">${packMarkup(set)}</span>`;
+
+            bob.append(pack, ribbon);
+            slot.append(glow, bob, mirror, caption);
             stage.append(slot);
             slots.set(set.id, slot);
         });
@@ -215,6 +284,17 @@ export class BoosterIntro {
         // The deck dividers and the binder offer the sealed sets too.
         document.addEventListener("open-booster", (e) => this.openSealed(e.detail.id));
         document.addEventListener("deck-cards-change", () => this.updateDock());
+        // Every card seen: the secret booster shows up in the dock.
+        document.addEventListener("collection-complete", () => this.updateDock());
+        // The spotlight's pool of light stays under the packs.
+        window.addEventListener("resize", () => this.active && this.placeFloor(), { passive: true });
+        // Keyboard users tab from pack to pack: the carousel follows the focus. Only theirs: a
+        // press focuses the pack under the finger too, and the swipe it starts moves on its own.
+        this.booster.addEventListener("focusin", (e) => {
+            const slot = e.target.closest?.(".pack-slot");
+            if (!slot || !this.isCarousel || this.phase !== "pick") return;
+            if (e.target.matches(":focus-visible")) this.turnCarousel(slot.dataset.pack);
+        });
     }
 
     /**
@@ -229,16 +309,26 @@ export class BoosterIntro {
 
         const [next] = sealed;
         const several = sealed.length > 1;
+        const name = localizeSet(next).name;
+        const isNew = sealed.some((set) => Collection.isNew(set));
+        this.dock.classList.toggle("is-new", isNew);
         this.dock.setAttribute(
             "aria-label",
-            several ? `Open a booster, ${sealed.length} left` : `Open the ${next.name} booster`
+            [
+                several
+                    ? t("dock.openSeveral", { n: sealed.length })
+                    : t("dock.openOne", { name }),
+                isNew ? t("booster.new") : "",
+            ]
+                .filter(Boolean)
+                .join(", ")
         );
         this.dock.querySelector("b").textContent = several
-            ? `${sealed.length} boosters`
-            : next.name;
-        this.dock.querySelector("small").textContent = several
-            ? `${sealed.reduce((n, set) => n + setCards(set).length, 0)} cards to open`
-            : `${setCards(next).length} cards to open`;
+            ? t("dock.boosters", { n: sealed.length })
+            : name;
+        this.dock.querySelector("small").textContent = t("dock.toOpen", {
+            n: sealed.reduce((n, set) => n + setCards(set).length, 0),
+        });
         this.dock.querySelector(".booster-dock-packs").replaceChildren(
             ...sealed.slice(0, DOCK_STACK).map((set) => {
                 const mini = document.createElement("span");
@@ -273,7 +363,7 @@ export class BoosterIntro {
         if (!sets.length) return;
 
         this.reopening = true;
-        this.skipBtn.textContent = "Not now";
+        this.skipBtn.textContent = t("booster.notNow");
         document.documentElement.dataset.intro = "booster";
         this.loader.classList.add("is-reopen");
         this.show(sets);
@@ -296,8 +386,12 @@ export class BoosterIntro {
         this.caught = 0;
         this.skipAsked = false;
         this.flushing = false;
+        this.choices = sets.map((set) => set.id);
         // A grid of packs to pick from: up to three per row on a phone, five on a wider
-        // screen, the last row centred.
+        // screen, the last row centred. Below CAROUSEL_BELOW, a carousel instead.
+        const carousel = sets.length > 1 && window.innerWidth < CAROUSEL_BELOW;
+        if (carousel) this.booster.dataset.layout = "carousel";
+        else delete this.booster.dataset.layout;
         const perRow = window.innerWidth >= PICK_WIDE_FROM ? PICK_COLUMNS_WIDE : PICK_COLUMNS_NARROW;
         const cols = Math.min(sets.length, perRow);
         const rows = Math.ceil(sets.length / cols);
@@ -307,6 +401,7 @@ export class BoosterIntro {
             const i = sets.findIndex((set) => set.id === id);
             slot.hidden = i < 0;
             slot.classList.remove("is-target");
+            slot.classList.toggle("is-new", i >= 0 && Collection.isNew(sets[i]));
             this.pack(id).style.visibility = "";
             if (i < 0) return;
             const row = Math.floor(i / cols);
@@ -314,30 +409,77 @@ export class BoosterIntro {
             slot.style.setProperty("--row", row);
             slot.style.setProperty("--col", (i % cols) + (cols - inRow) / 2);
         });
+        if (carousel) this.turnCarousel(sets[0].id);
+        this.light(sets[0].id);
 
-        if (sets.length === 1) this.focus(sets[0].id);
-        else this.setPhase("pick");
+        if (sets.length === 1) {
+            this.focus(sets[0].id);
+        } else {
+            this.setPhase("pick");
+            // Opened from the dock or the drawer, the focus would be left on a control now
+            // hidden: it moves to the first pack. Not on the first visit, where nothing had it.
+            if (this.reopening) this.pack(sets[0].id).focus({ preventScroll: true });
+        }
     }
 
     setPhase(phase) {
         this.booster.dataset.phase = phase;
-        if (HINTS[phase]) this.hint.textContent = HINTS[phase];
+        // The lobby's light and language button follow the phase too (index.html).
+        this.loader.dataset.phase = phase;
+        const hint = phase === "pick" && this.isCarousel ? "booster.pickSwipe" : HINTS[phase];
+        if (hint) this.hint.textContent = t(hint);
+        this.placeFloor();
+    }
+
+    /** Bring pack `id` to the middle of the carousel: each slot knows how far from it it is. */
+    turnCarousel(id) {
+        const at = this.choices.indexOf(id);
+        if (at < 0) return;
+        this.carouselAt = at;
+        this.light(id);
+        this.choices.forEach((key, i) => {
+            const slot = this.slots.get(key);
+            slot.style.setProperty("--off", i - at);
+            slot.classList.toggle("is-centre", i === at);
+            slot.classList.toggle("is-far", Math.abs(i - at) > 1);
+        });
+    }
+
+    /** One pack further (1) or back (-1) along the carousel. */
+    stepCarousel(direction) {
+        const next = this.choices[this.carouselAt + direction];
+        if (next) this.turnCarousel(next);
+        else if (!this.fx.calm) this.nudgeCarousel(direction);
+    }
+
+    // At either end: the carousel leans towards the swipe, and comes back.
+    nudgeCarousel(direction) {
+        this.booster.querySelector(".booster-stage").animate(
+            [{ translate: "0 0" }, { translate: `${-direction * 18}px 0` }, { translate: "0 0" }],
+            { duration: 320, easing: "ease-out" }
+        );
     }
 
     focus(id) {
         this.target = id;
         this.slots.forEach((slot, key) => slot.classList.toggle("is-target", key === id));
+        this.light(id);
         this.setPhase("focus");
         this.untiltAll();
         this.pack(id).focus({ preventScroll: true });
     }
 
     onPackClick(e) {
+        // The click that ends a swipe of the carousel, if the finger lifted over a pack.
+        if (performance.now() - (this.swipedAt ?? -Infinity) < 400) return;
         const pack = e.target.closest(".pack");
         if (!pack || !this.active || this.cutting) return;
         const id = pack.closest(".pack-slot").dataset.pack;
 
-        if (this.phase === "pick") this.focus(id);
+        // In the carousel, a pack on the side comes to the middle first.
+        if (this.phase === "pick" && this.isCarousel && this.choices[this.carouselAt] !== id) {
+            this.turnCarousel(id);
+        } else if (this.phase === "pick") this.focus(id);
         // Enter or Space on the focused pack: the cut draws itself. Pointer clicks are strokes.
         else if (id === this.target && e.detail === 0) this.autoCut();
     }
@@ -348,6 +490,10 @@ export class BoosterIntro {
         if (e.target.closest(".booster-skip")) return;
         if (this.phase === "reveal") {
             this.tap = { x: e.clientX, y: e.clientY };
+            return;
+        }
+        if (this.phase === "pick" && this.isCarousel) {
+            this.swipe = { x: e.clientX, y: e.clientY };
             return;
         }
         if (this.phase !== "focus" || !this.active || this.cutting) return;
@@ -388,6 +534,17 @@ export class BoosterIntro {
     }
 
     onUp(e) {
+        const swipe = this.swipe;
+        this.swipe = null;
+        if (swipe && e) {
+            const dx = e.clientX - swipe.x;
+            const dy = e.clientY - swipe.y;
+            if (Math.abs(dx) > SWIPE_DISTANCE && Math.abs(dx) > Math.abs(dy)) {
+                this.swipedAt = performance.now();
+                this.stepCarousel(dx < 0 ? 1 : -1);
+            }
+            return;
+        }
         const tap = this.tap;
         this.tap = null;
         if (tap && e && distance(tap, { x: e.clientX, y: e.clientY }) < TAP_DISTANCE * 2) {
@@ -516,6 +673,11 @@ export class BoosterIntro {
             (window.innerWidth * REVEAL_WIDTH) / deckBox.offsetWidth,
             (stage.height * REVEAL_HEIGHT) / deckBox.offsetHeight
         );
+        this.closeScale = Math.min(
+            this.scale * INSPECT_CLOSER,
+            (window.innerWidth * INSPECT_FIT) / deckBox.offsetWidth,
+            (window.innerHeight * INSPECT_FIT) / deckBox.offsetHeight
+        );
         this.rays.style.left = `${this.center.x}px`;
         this.rays.style.top = `${this.center.y}px`;
 
@@ -550,7 +712,7 @@ export class BoosterIntro {
         this.setPhase("reveal");
         this.hint.textContent = "";
         this.loader.classList.remove("is-cut");
-        this.skipBtn.textContent = "Skip";
+        this.skipBtn.textContent = t("booster.skip");
         document.body.classList.add("booster-revealing");
         window.addEventListener("keydown", this.onKeydown);
         this.fx.burst(this.center.x, this.center.y, [set.booster.highlight, set.booster.color, "#ffffff"], 60, 8);
@@ -603,44 +765,96 @@ export class BoosterIntro {
         const rarity = CONFIG.RARITIES[top.rarity];
         if (rarity && !top.shown) {
             top.el.classList.add(`is-${top.rarity}`);
-            if (rarity.reveal === "halo") this.raysOn(true);
+            if (rarity.reveal === "halo" || rarity.rays) this.raysOn(true);
         }
-        let text = "Tap to add it to your collection";
-        if (!top.shown) text = rarity ? `${rarity.label} inside · tap to reveal` : "Tap to reveal";
-        else if (rarity) text = `${rarity.label}! Tap to add it to your collection`;
-        this.hint.textContent = `${text} · ${at}`;
+        const label = rarity && rarityLabel(top.rarity);
+        let text = rarity ? t("booster.rarityInside", { rarity: label }) : t("booster.tapReveal");
+        if (top.shown) text = rarity ? t("booster.rarityShown", { rarity: label }) : "";
+        this.hint.textContent = [text, at].filter(Boolean).join(" · ");
     }
 
-    /** A tap: turn the top card over, or send it to the collection once it shows. */
+    /**
+     * A tap: turn the top card over; once looked at, it goes into the collection by itself.
+     * Another tap while it turns or is looked at sends it at once.
+     */
     async tapReveal() {
-        if (this.phase !== "reveal" || this.busy) return;
-        const top = this.items[0];
-        if (!top) return;
-        if (top.shown) {
-            this.items.shift();
-            const flight = this.toCollection(top);
-            if (!this.items.length) {
-                this.busy = true;
-                await flight;
-                this.collect();
-                return;
-            }
-            this.prompt();
+        if (this.phase !== "reveal") return;
+        if (this.hurry) {
+            this.hurry();
             return;
         }
+        if (this.busy) return;
+        const top = this.items[0];
+        if (!top) return;
         this.busy = true;
+        const hurried = { now: false };
+        this.hurry = () => (hurried.now = true);
         const reveal = CONFIG.RARITIES[top.rarity]?.reveal;
         if (reveal === "cracks") {
             await this.crackOpen(top);
+            this.raysOn(false);
+        } else if (reveal === "nova") {
+            await this.nova(top);
+            this.raysOn(false);
         } else {
             if (reveal === "halo") await this.holoBuild(top);
             await this.turnOver(top);
             // The glow only frames the reveal; the card itself carries on alone.
             this.raysOn(false);
         }
+        this.prompt();
+        if (!hurried.now) await this.inspect(top, hurried);
+        this.hurry = null;
+
+        this.items.shift();
+        const flight = this.toCollection(top);
+        if (!this.items.length) {
+            await flight;
+            this.collect();
+            return;
+        }
         this.busy = false;
         if (this.skipAsked) this.flush();
         else this.prompt();
+    }
+
+    /**
+     * The card just shown is picked up for a look: it comes closer and turns in the hand, the
+     * light running over its face as under the pointer on the deck, then waits a beat.
+     * Hurried, it stops where it is and the flight to Collection takes over from there.
+     */
+    inspect(item, hurried) {
+        const from = item.t.s;
+        const close = this.closeScale;
+        const calm = this.fx.calm;
+        const end = INSPECT + INSPECT_HOLD + (item.rarity ? RARE_HOLD : 0);
+        return new Promise((resolve) => {
+            const begin = performance.now();
+            const step = (now) => {
+                const time = now - begin;
+                const k = Math.min(1, time / INSPECT);
+                // Brought closer over the first quarter; the hand turns it all along, flat
+                // again by the end, wandering like a real hand rather than swinging evenly.
+                const near = calm ? 1 : 1 - (1 - Math.min(1, k / 0.25)) ** 3;
+                const hand = calm ? 0 : Math.sin(Math.PI * k);
+                const nx = Math.sin(k * Math.PI * 2.2 - 0.6) * hand;
+                const ny = Math.sin(k * Math.PI * 1.3 + 0.5) * 0.7 * hand;
+                item.t = {
+                    ...item.t,
+                    x: nx * 6,
+                    y: 0,
+                    r: nx * 2,
+                    rx: ny * INSPECT_TILT,
+                    ry: -nx * INSPECT_TILT,
+                    s: from + (close - from) * near,
+                };
+                item.el.style.transform = pose(item.t);
+                setCardVars(item.card, { mx: 50 + nx * 45, my: 50 + ny * 45, glare: hand });
+                if (hurried.now || time >= end) resolve();
+                else requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+        });
     }
 
     // In two halves: the faces swap while the card is edge-on, so the front never shows
@@ -788,6 +1002,42 @@ export class BoosterIntro {
         item.card.playShine();
     }
 
+    /**
+     * A secret: drawn back trembling, it spins faster and faster while its back fills with
+     * light, then bursts like a star, and the card lands face up in the middle of the blast.
+     */
+    async nova(item) {
+        const s = this.scale;
+        const fx = this.fx;
+        const { x, y } = this.center;
+        item.el.classList.add("is-charging");
+        await this.move(item, { x: 0, y: 12, r: 0, s: s * 0.94 }, {
+            duration: NOVA_WIND,
+            easing: "linear",
+            via: trembling(s * 0.97, 3, -0.003),
+        });
+        fx.burst(x, y, ["#ffffff", "#dccbff", "#bff3ff"], 40, 4);
+        // Edge-on at the end of the last turn: the faces swap there.
+        await this.move(item, { y: -18, ry: NOVA_TURNS * 360 + 90, s: s * 1.12 }, {
+            duration: NOVA_SPIN,
+            easing: "cubic-bezier(.55,0,.9,.6)",
+        });
+        item.el.classList.remove("is-down", "is-charging");
+        fx.flash(1);
+        fx.shake(document.body, 1.3);
+        fx.shock(x, y);
+        fx.burst(x, y, ["#ffffff", "#ffc2ec", "#bff3ff", "#dccbff", "#fff3a0"], 170, 15);
+        fx.burst(x, y, ["#ffffff", "#e6dcff"], 60, 6);
+        navigator.vibrate?.([30, 40, 50]);
+        item.t.ry = -90;
+        await this.move(item, { ry: 0, y: 0, s: s * 1.04 }, {
+            duration: NOVA_LAND,
+            easing: "cubic-bezier(.2,1.5,.4,1)",
+        });
+        item.shown = true;
+        item.card.playShine();
+    }
+
     raysOn(on) {
         if (this.rays.classList.contains("is-on") === on) return;
         this.rays.classList.toggle("is-on", on);
@@ -829,9 +1079,10 @@ export class BoosterIntro {
     /** Skip: every card left turns over and flies into Collection, one after the other. */
     async flush() {
         if (this.flushing) return;
-        // A card still rising or turning: skip once it is done.
+        // A card still rising or turning: skip once it is done, without the look at it.
         if (this.busy) {
             this.skipAsked = true;
+            this.hurry?.();
             return;
         }
         this.flushing = true;
@@ -862,6 +1113,7 @@ export class BoosterIntro {
 
     hide() {
         this.loader.classList.add("is-hidden");
+        this.deckManager.setCovered(false);
     }
 
     skip() {
@@ -885,7 +1137,7 @@ export class BoosterIntro {
         this.active = false;
         this.reopening = false;
         this.loader.classList.remove("is-reopen");
-        this.skipBtn.textContent = "Skip intro";
+        this.skipBtn.textContent = t("booster.skipIntro");
         this.deckManager.isAnimating = false;
         this.updateDock();
         this.resolve?.();
@@ -897,9 +1149,11 @@ export class BoosterIntro {
     // Mouse only: the hovered pack leans towards the pointer and the light follows it.
     tilt(e) {
         if (!this.active || this.cutting || e.pointerType !== "mouse") return;
-        const pack = e.target.closest?.(".pack:not(.pack-half)");
+        const pack = e.target.closest?.(".pack:not(.pack-half, .pack-copy)");
         this.untiltAll(pack);
         if (!pack) return;
+        // While picking, the spotlight turns to the pack under the mouse.
+        if (this.phase === "pick") this.light(pack.closest(".pack-slot").dataset.pack);
 
         const rect = pack.getBoundingClientRect();
         const nx = Utils.clamp(((e.clientX - rect.left) / rect.width) * 2 - 1, -1, 1);

@@ -37,9 +37,10 @@
     --bg-grass: #0d3d1f;
     --bg-ice: #0a3d52;
     --bg-default: #101010;
-    /* Rare and gold cards (CONFIG.RARITIES) colour the page whatever their theme. */
+    /* Rare, gold and secret cards (CONFIG.RARITIES) colour the page whatever their theme. */
     --bg-gold: #3a2906;
     --bg-rare: #1d1438;
+    --bg-secret: #0d0b15;
 
     /* Frosted-glass tints, by opacity percentage. */
     --glass-10: rgba(255, 255, 255, 0.1);
@@ -149,6 +150,18 @@ body[data-rarity="rare"]::after {
     );
 }
 
+/* A secret rare: a dark room with a faint prism of light behind the card. */
+body[data-rarity="secret"]::after {
+    opacity: 1;
+    background: radial-gradient(70% 55% at 50% 42%, rgba(160, 140, 255, 0.22), transparent 70%),
+        linear-gradient(
+            125deg,
+            rgba(120, 70, 220, 0.16),
+            rgba(40, 140, 200, 0.12) 40%,
+            rgba(200, 80, 160, 0.16)
+        );
+}
+
 /* ==========================================
    DECK CONTAINER
    ========================================== */
@@ -217,6 +230,83 @@ body[data-rarity="rare"]::after {
     font-size: 18px;
 }
 
+/* The other language, as a two-letter code. */
+.lang-btn {
+    padding-inline: 14px;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+}
+
+/* ==========================================
+   GESTURE HINT (gesture-hint.js) and TOAST (seen-tracker.js)
+   ========================================== */
+/* Over the card's picture, on a first visit: how to handle the deck. */
+.deck-hint {
+    position: absolute;
+    left: 50%;
+    top: 38%;
+    /* Over every card, the front one (z-index 50) and a held or thrown one (999) alike. */
+    z-index: 1000;
+    translate: -50% 0;
+    width: max-content;
+    max-width: calc(100% - 32px);
+    padding: 10px 16px;
+    border-radius: 99px;
+    background: rgba(12, 10, 18, 0.78);
+    border: 1px solid var(--glass-20);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
+    font: 600 13px/1.35 "Poppins", sans-serif;
+    text-align: center;
+    pointer-events: none;
+    animation: hint-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.deck-hint[hidden],
+.toast[hidden] {
+    display: none;
+}
+
+.deck-hint.is-leaving,
+.toast.is-leaving {
+    animation: hint-out 0.3s ease forwards;
+}
+
+.toast {
+    position: fixed;
+    left: 50%;
+    /* In line with the toolbar, clear of it (it sits on the right); below it on a phone. */
+    top: max(24px, env(safe-area-inset-top));
+    z-index: calc(var(--z-overlay) + 2);
+    translate: -50% 0;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    padding: 12px 18px;
+    border-radius: 14px;
+    background: linear-gradient(120deg, #2a2142, #16131f);
+    border: 1px solid rgba(230, 220, 255, 0.45);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 24px rgba(170, 150, 255, 0.25);
+    color: #fff;
+    font: 600 14px/1.35 "Poppins", sans-serif;
+    text-align: center;
+    animation: hint-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes hint-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+@keyframes hint-out {
+    to {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
 /* ==========================================
    DECK NAVIGATION (previous/next around the scrubber, deck-nav.js)
    ========================================== */
@@ -261,7 +351,8 @@ body[data-rarity="rare"]::after {
     width: 280px;
     max-width: calc(100vw - 2 * 36px - 120px);
     height: 36px;
-    margin: 0 8px;
+    /* Room for the thumb and its halo at either end of the track. */
+    margin: 0 12px;
     cursor: pointer;
     touch-action: none;
 }
@@ -496,6 +587,22 @@ body.booster-revealing .collection-btn {
     color: rgba(255, 255, 255, 0.6);
 }
 
+/* What seeing every card leads to. */
+.collection-goal {
+    margin: 0;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px dashed rgba(230, 220, 255, 0.3);
+    background: rgba(170, 150, 255, 0.07);
+    font: 600 11.5px/1.35 "Poppins", sans-serif;
+    color: rgba(230, 220, 255, 0.85);
+}
+
+.collection-goal.is-done {
+    border-style: solid;
+    color: #e6dcff;
+}
+
 .collection-close {
     flex: none;
     width: 36px;
@@ -522,6 +629,7 @@ body.booster-revealing .collection-btn {
 }
 
 .collection-tile {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -576,6 +684,14 @@ body.booster-revealing .collection-btn {
 
 .collection-tile.is-sealed small {
     color: #ffcf6b;
+}
+
+.collection-tile .new-ribbon {
+    top: 8px;
+    right: 8px;
+    rotate: 6deg;
+    font-size: 9px;
+    padding: 4px 7px;
 }
 
 .collection-bar {
@@ -709,11 +825,38 @@ body.booster-revealing .collection-btn {
     font-family: "Poppins", sans-serif;
     text-align: left;
     cursor: pointer;
-    animation: dock-call 2.6s ease-in-out infinite;
+}
+
+/* The glow calling for the sealed packs. Its opacity pulses rather than the shadow itself,
+   which would repaint on every frame, and at 20 frames a second (four 0.65s intervals of
+   13 steps): smoother, it would recomposite the blurred dock 60 to 144 times a second. */
+.booster-dock::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 28px rgba(255, 207, 107, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    animation: dock-call 2.6s steps(13) infinite;
 }
 
 .booster-dock[hidden] {
     display: none;
+}
+
+/* A set added since the last visit waits among the sealed ones. */
+.booster-dock .new-ribbon {
+    top: -10px;
+    right: -10px;
+    rotate: 8deg;
+    font-size: 9px;
+    padding: 4px 7px;
+    display: none;
+}
+
+.booster-dock.is-new .new-ribbon {
+    display: block;
 }
 
 .booster-dock:focus-visible {
@@ -785,9 +928,14 @@ body.booster-revealing .collection-btn {
     line-height: 1;
 }
 
+/* The ease-in-out it had, sampled (steps() drops the easing). */
 @keyframes dock-call {
+    25%,
+    75% {
+        opacity: 0.5;
+    }
     50% {
-        box-shadow: 0 0 28px rgba(255, 207, 107, 0.4);
+        opacity: 1;
     }
 }
 
@@ -856,8 +1004,10 @@ body:not(.binder-active) .booster-btn,
         transition: none !important;
     }
 
-    .booster-dock,
-    .collection-drawer[open] {
+    .booster-dock::after,
+    .collection-drawer[open],
+    .deck-hint,
+    .toast {
         animation: none;
     }
 

@@ -2,13 +2,14 @@ import { CONFIG } from "../config.js";
 import { setCards } from "./card-renderer.js";
 import { packMarkup, packStyle } from "./booster-pack.js";
 import { Collection } from "./collection.js";
+import { localizeSet, t } from "../i18n.js";
 
 /**
- * The collection drawer, opened from the toolbar: one tile per set of CONFIG.SETS, with its
- * pack and how many of its cards are owned. An opened set narrows the deck to its cards; a
- * sealed one opens its booster. The toolbar button names the set the deck is narrowed to and
- * counts the boosters still sealed; while a booster is revealed, it counts the cards it
- * catches instead.
+ * The collection drawer, opened from the toolbar: one tile per set on offer
+ * (Collection.sets()), with its pack and how many of its cards have been seen. An opened set
+ * narrows the deck to its cards; a sealed one opens its booster. The toolbar button names the
+ * set the deck is narrowed to; while a booster is revealed, its badge counts the cards it
+ * catches (the sealed boosters have the dock).
  */
 export class CollectionDrawer {
     constructor(deckManager) {
@@ -18,6 +19,7 @@ export class CollectionDrawer {
         this.dialog = document.getElementById("collection-drawer");
         this.tiles = document.getElementById("collection-tiles");
         this.summary = document.getElementById("collection-summary");
+        this.goal = document.getElementById("collection-goal");
 
         this.button.addEventListener("click", () => this.open());
         this.dialog
@@ -57,6 +59,10 @@ export class CollectionDrawer {
         if (asking) this.confirm.querySelector('[data-reset="cancel"]').focus();
     }
 
+    get isOpen() {
+        return this.dialog.open;
+    }
+
     open() {
         if (this.deckManager.isAnimating) return;
         this.render();
@@ -89,24 +95,30 @@ export class CollectionDrawer {
         const deck = this.deckManager;
         this.badge.classList.remove("is-incoming");
         this.button.classList.remove("is-catching");
-        const sealed = CONFIG.SETS.length - deck.opened.length;
-        this.badge.hidden = sealed === 0 || deck.opened.length === 0;
-        this.badge.textContent = sealed;
+        this.badge.hidden = true;
 
         const set = CONFIG.SETS.find((s) => s.id === deck.filter);
-        this.button.querySelector(".toolbar-label").textContent = set ? set.name : "Collection";
+        const name = set && localizeSet(set).name;
+        this.button.querySelector(".toolbar-label").textContent = set ? name : t("collection.title");
         this.button.classList.toggle("is-filtered", Boolean(set));
         this.button.style.setProperty("--set-color", set ? set.booster.highlight : "");
         this.button.setAttribute(
             "aria-label",
-            set ? `Collection, showing ${set.name} only` : "Collection"
+            set ? t("collection.buttonFiltered", { name }) : t("collection.title")
         );
     }
 
     render() {
         const deck = this.deckManager;
         const owned = deck.opened.reduce((n, set) => n + setCards(set).length, 0);
-        this.summary.textContent = `${owned} cards · ${deck.opened.length} / ${CONFIG.SETS.length} sets opened`;
+        const progress = Collection.progress();
+        const complete = Collection.isComplete();
+        this.summary.textContent = t("collection.summary", { owned, ...progress });
+        // What the progress leads to: a secret booster, then nothing more to find.
+        this.goal.textContent = complete
+            ? t("collection.complete")
+            : t("collection.unlockHint", { total: progress.total });
+        this.goal.classList.toggle("is-done", complete);
 
         const all = document.createElement("button");
         all.type = "button";
@@ -115,12 +127,16 @@ export class CollectionDrawer {
         all.setAttribute("aria-current", String(deck.filter === "all"));
         all.innerHTML = `
             <span class="collection-stack">${owned}</span>
-            <b>All cards</b>
-            <small>${deck.opened.length} sets</small>`;
+            <b></b>
+            <small></small>`;
+        all.querySelector("b").textContent = t("collection.all");
+        all.querySelector("small").textContent = t("collection.sets", { n: deck.opened.length });
 
-        const tiles = CONFIG.SETS.map((set) => {
+        const tiles = Collection.sets().map((set) => {
             const count = setCards(set).length;
+            const seen = Collection.seenIn(set);
             const open = deck.has(set);
+            const { name } = localizeSet(set);
             const tile = document.createElement("button");
             tile.type = "button";
             tile.className = "collection-tile";
@@ -135,12 +151,24 @@ export class CollectionDrawer {
             tile.innerHTML = `
                 <span class="pack-mini" data-pack="${set.id}" style="${packStyle(set)}">${packMarkup(set)}</span>
                 <b></b>
-                <span class="collection-bar"><i style="width: ${open ? 100 : 0}%"></i></span>
-                <small>${open ? `${count} / ${count}` : `Sealed · ${count} cards`}</small>`;
-            tile.querySelector("b").textContent = set.name;
+                <span class="collection-bar"><i style="width: ${open ? (seen / count) * 100 : 0}%"></i></span>
+                <small></small>`;
+            tile.querySelector("b").textContent = name;
+            tile.querySelector("small").textContent = open
+                ? t("collection.tileSeen", { seen, total: count })
+                : t("collection.tileSealed", { n: count });
+            // Added since the last visit.
+            if (!open && Collection.isNew(set)) {
+                const ribbon = document.createElement("span");
+                ribbon.className = "new-ribbon";
+                ribbon.textContent = t("booster.new");
+                tile.append(ribbon);
+            }
             tile.setAttribute(
                 "aria-label",
-                open ? `${set.name}, ${count} cards: show only these` : `${set.name}, sealed: open its booster`
+                open
+                    ? t("collection.tileOpenLabel", { name, seen, total: count })
+                    : t("collection.tileSealedLabel", { name })
             );
             return tile;
         });

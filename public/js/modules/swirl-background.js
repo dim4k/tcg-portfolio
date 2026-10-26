@@ -17,6 +17,19 @@ const PARTICLE_ALPHA = 1;
 const HUE_STEPS = 360;
 const ALPHA_STEPS = 32;
 
+// The swirl is drawn at about FPS, whatever the display's refresh rate: unthrottled it ran at
+// 144 fps on a 144 Hz screen, and moved 2.4x faster there. Motion is tuned per 60 Hz frame,
+// so each drawn frame advances as many of them as the time it covers (capped after a pause).
+const FPS = 30;
+const FRAME_MS = 1000 / FPS;
+const TUNED_FRAME_MS = 1000 / 60;
+const MAX_STEP = 4;
+// Slack under FRAME_MS, so a 60 Hz display draws every other vsync instead of every third.
+const FRAME_SLACK_MS = 8;
+// Backing store size relative to CSS pixels: the output is blurred anyway, a quarter of the
+// pixels is a quarter of the fill and of the blur the compositor runs on every frame.
+const RESOLUTION = 0.5;
+
 // Quantized colour cache: without it a fresh hsla() string is allocated and re-parsed
 // for every particle of every frame (~9k allocations/s).
 const colorLut = new Array(HUE_STEPS * ALPHA_STEPS);
@@ -71,17 +84,22 @@ export class SwirlBackground {
             ice: { base: 190, range: 40, saturated: true }, // Cyan-Blue
             gold: { base: 36, range: 20, saturated: true }, // Amber-Gold, behind a gold card
             rare: { base: 0, range: 360, saturated: true }, // Every hue, behind a rare card
+            secret: { base: 250, range: 70, saturated: true }, // Violet to cyan, behind a secret rare
             default: { base: 220, range: 100, saturated: true }, // Blue-Purple
         };
 
         this.currentTheme = this.themeHues.default;
         this.ctx = null;
+        this.width = 0;
+        this.height = 0;
         this.center = [0, 0];
         this.tick = 0;
+        this.lastFrame = -Infinity;
+        this.step = 1;
         this.wanted = true;
         this.rafId = null;
         this.resizeTimeout = null;
-        this.boundDraw = () => this.draw();
+        this.boundDraw = (now) => this.draw(now);
 
         this.init();
     }
@@ -109,10 +127,15 @@ export class SwirlBackground {
     resize() {
         const { innerWidth, innerHeight } = window;
 
-        // Deliberately CSS-pixel sized: the output is blurred by the compositor, so a
-        // devicePixelRatio backing store would cost up to 4x the fill rate for no visible gain.
-        this.canvas.width = innerWidth;
-        this.canvas.height = innerHeight;
+        // Deliberately sized below CSS pixels (RESOLUTION): the output is blurred by the
+        // compositor, a sharper backing store would cost fill rate for no visible gain.
+        // Particles keep living in CSS pixels; the transform maps them onto the backing store.
+        this.width = innerWidth;
+        this.height = innerHeight;
+        this.canvas.width = Math.ceil(innerWidth * RESOLUTION);
+        this.canvas.height = Math.ceil(innerHeight * RESOLUTION);
+        // Resizing the canvas resets the context state, transform included.
+        this.ctx.setTransform(RESOLUTION, 0, 0, RESOLUTION, 0, 0);
 
         this.center[0] = 0.5 * innerWidth;
         this.center[1] = 0.5 * innerHeight;
@@ -134,7 +157,7 @@ export class SwirlBackground {
 
     initParticle(i) {
         const props = this.particleProps;
-        props[i] = rand(this.canvas.width);
+        props[i] = rand(this.width);
         props[i + 1] = this.center[1] + randRange(this.rangeY);
         props[i + 2] = 0; // vx
         props[i + 3] = 0; // vy
@@ -170,14 +193,14 @@ export class SwirlBackground {
         let life = this.particleProps[i5];
         const ttl = this.particleProps[i6];
         const speed = this.particleProps[i7];
-        const x2 = x + vx * speed;
-        const y2 = y + vy * speed;
+        const x2 = x + vx * speed * this.step;
+        const y2 = y + vy * speed * this.step;
         const radius = this.particleProps[i8];
         const hue = this.particleProps[i9];
 
         this.drawParticle(x, y, x2, y2, life, ttl, radius, hue);
 
-        life++;
+        life += this.step;
 
         this.particleProps[i] = x2;
         this.particleProps[i2] = y2;
@@ -206,7 +229,7 @@ export class SwirlBackground {
     }
 
     checkBounds(x, y) {
-        return x > this.canvas.width || x < 0 || y > this.canvas.height || y < 0;
+        return x > this.width || x < 0 || y > this.height || y < 0;
     }
 
     drawParticles() {
@@ -221,11 +244,18 @@ export class SwirlBackground {
 
     // The glow used to be two full-screen ctx.filter blur passes per frame; it is now a single
     // CSS filter on the canvas element (see #canvas-background in base.css).
-    draw() {
-        this.tick++;
+    draw(now) {
+        this.rafId = requestAnimationFrame(this.boundDraw);
+
+        const elapsed = now - this.lastFrame;
+        if (elapsed < FRAME_MS - FRAME_SLACK_MS) return;
+        this.lastFrame = now;
+        // The first frame (elapsed is Infinity) and the one after a pause take the largest step.
+        this.step = Math.min(elapsed / TUNED_FRAME_MS, MAX_STEP);
+        this.tick += this.step;
 
         const ctx = this.ctx;
-        const { width, height } = this.canvas;
+        const { width, height } = this;
 
         ctx.globalCompositeOperation = "source-over";
         ctx.fillStyle = BACKDROP;
@@ -234,8 +264,6 @@ export class SwirlBackground {
         ctx.globalCompositeOperation = "lighter";
         ctx.lineCap = "round";
         this.drawParticles();
-
-        this.rafId = requestAnimationFrame(this.boundDraw);
     }
 
     setTheme(theme) {

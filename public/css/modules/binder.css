@@ -446,6 +446,27 @@ button.pocket:focus-visible,
     visibility: hidden;
 }
 
+/* A card never looked at yet (collection.js): a tag on the sleeve and a brighter edge. */
+.pocket.is-new {
+    box-shadow: inset 0 0 0 1px rgba(255, 207, 107, 0.55), 0 0 10px rgba(255, 207, 107, 0.25);
+}
+
+.pocket-new {
+    position: absolute;
+    top: 5%;
+    right: 5%;
+    z-index: 2;
+    padding: 0.8cqw 1.6cqw;
+    border-radius: 99px;
+    background: #ffcf6b;
+    color: #24170a;
+    /* cqw of the page: the pocket is about a quarter of its width. */
+    font: 700 2.1cqw/1 "Poppins", sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
 /* A card of a sealed set: something waits in the pocket. */
 .pocket.is-mystery {
     display: grid;
@@ -467,18 +488,35 @@ button.pocket:focus-visible,
 
 /* ---------- Tabs: one per set, on the edge of the book ---------- */
 /* Behind the book: while a page turns they tuck in under it, then come out again one after
-   the other once it has landed (binder-view.js), the one of the set on show a little further. */
+   the other once it has landed (binder-view.js). The one of the set on show is a bookmark:
+   further out, and in front of the page, its end lying on it.
+   Its z-index waits for the moves (a 0s transition with a delay): it only comes in front once
+   out from under the page, and goes back behind once its end has folded away. */
 .binder-tabs {
     position: absolute;
-    z-index: -1;
     left: 100%;
     top: 10%;
     display: flex;
     flex-direction: column;
     gap: 6px;
+    /* Painted above the tabs it holds (they are behind the book, it is not): clicks must go
+       through it to them. */
+    pointer-events: none;
+    /* How far the bookmark's end lies over the page, and how much further out it sits. */
+    --tab-over: 22px;
+    --tab-out: 6px;
+    /* Its end folds away before it tucks in. */
+    --tab-fold-ms: 150ms;
 }
 
+/* Each tab, not the row, is behind the book: the current one must be able to come out. */
 .binder-tab {
+    /* Out from under the book, then in front, then its end unfolds over the page. Declared
+       here, where --i (its rank, written inline) resolves. */
+    --tab-out-ms: calc(var(--i, 0) * 60ms + 400ms);
+    position: relative;
+    z-index: -1;
+    pointer-events: auto;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -492,21 +530,61 @@ button.pocket:focus-visible,
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
     cursor: pointer;
     transition: translate 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) calc(var(--i, 0) * 60ms),
-        background-color 0.3s ease, color 0.3s ease;
+        background-color 0.3s ease, color 0.3s ease, z-index 0s var(--tab-fold-ms);
+}
+
+/* The bookmark's end over the page: the tab's colour, a crease along the page edge, and its
+   shadow on the page. Folded away (scaled to nothing) on every other tab. */
+.binder-tab::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 100%;
+    width: var(--tab-over);
+    border-radius: 3px 0 0 3px;
+    background-color: inherit;
+    background-image: linear-gradient(
+        90deg,
+        transparent calc(100% - var(--tab-out) - 8px),
+        rgba(0, 0, 0, 0.2) calc(100% - var(--tab-out)),
+        transparent
+    );
+    box-shadow: -2px 3px 6px rgba(0, 0, 0, 0.35);
+    transform-origin: right;
+    scale: 0 1;
+    transition: scale var(--tab-fold-ms) ease-in;
 }
 
 .binder-tab[aria-current="true"] {
+    z-index: 1;
     background: var(--set-color);
     color: #15121c;
-    translate: 6px 0;
+    translate: var(--tab-out) 0;
+    transition: translate 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) calc(var(--i, 0) * 60ms),
+        background-color 0.3s ease, color 0.3s ease, z-index 0s var(--tab-out-ms);
 }
 
+.binder-tab[aria-current="true"]::before {
+    scale: 1;
+    transition: scale 0.25s cubic-bezier(0.2, 0.8, 0.3, 1) var(--tab-out-ms);
+}
+
+/* The set on show changes as the turn starts: the tabs swap colours only once tucked in, so
+   the new current one comes out already lit, and the old one goes in still lit. */
 .binder.is-flipping .binder-tab,
 .binder.is-flipping .binder-tab[aria-current="true"] {
+    --tab-in-ms: calc(var(--tab-fold-ms) + 220ms);
+    z-index: -1;
     translate: -100% 0;
-    transition-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5);
-    transition-duration: 0.22s;
-    transition-delay: 0s;
+    transition: translate 0.22s cubic-bezier(0.5, 0, 0.9, 0.5) var(--tab-fold-ms),
+        background-color 0s var(--tab-in-ms), color 0s var(--tab-in-ms),
+        z-index 0s var(--tab-fold-ms);
+}
+
+.binder.is-flipping .binder-tab::before {
+    scale: 0 1;
+    transition: scale var(--tab-fold-ms) ease-in;
 }
 
 .binder-tab.is-sealed {
@@ -530,16 +608,49 @@ button.pocket:focus-visible,
     justify-content: center;
 }
 
+.binder[data-mode="single"] .binder-tabs {
+    --tab-over: 16px;
+    --tab-out: 4px;
+}
+
 .binder[data-mode="single"] .binder-tab {
     border-radius: 10px 10px 0 0;
 }
 
+/* The bookmark's end hangs down over the top of the page. */
+.binder[data-mode="single"] .binder-tab::before {
+    top: 100%;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: var(--tab-over);
+    border-radius: 0 0 3px 3px;
+    background-image: linear-gradient(
+        0deg,
+        transparent calc(100% - var(--tab-out) - 8px),
+        rgba(0, 0, 0, 0.2) calc(100% - var(--tab-out)),
+        transparent
+    );
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+    transform-origin: top;
+    scale: 1 0;
+}
+
+.binder[data-mode="single"] .binder-tab[aria-current="true"]::before {
+    scale: 1;
+}
+
 .binder[data-mode="single"] .binder-tab[aria-current="true"] {
-    translate: 0 -4px;
+    translate: 0 calc(var(--tab-out) * -1);
 }
 
 .binder[data-mode="single"].is-flipping .binder-tab {
     translate: 0 100%;
+}
+
+.binder[data-mode="single"].is-flipping .binder-tab::before {
+    scale: 1 0;
 }
 
 /* ---------- Page navigation ---------- */
@@ -695,7 +806,8 @@ button.pocket:focus-visible,
 @media (prefers-reduced-motion: reduce) {
     .leaf,
     .binder-stage,
-    .binder-tab {
+    .binder-tab,
+    .binder-tab::before {
         transition-duration: 0.01s;
         transition-delay: 0s;
     }

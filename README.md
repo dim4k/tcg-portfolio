@@ -23,14 +23,15 @@ This project reimagines the traditional web portfolio as a deck of collectible c
 ### 🎨 Visual Experience
 
 -   **Holographic VMAX Effect**: Realistic foil textures, glitter, and glare that react to light.
--   **Rare and Gold Cards**: `rarity: "rare"` or `rarity: "gold"` on a card in `config.js`. A rare gets a rainbow foil with glitter and a light that breathes at rest, a gold an engraved gold finish with sparkles; in front of the deck, either one colours the whole page. In a booster they come out last: a rare with a halo, a gold with its back cracking open.
+-   **Rare, Gold and Secret Cards**: `rarity: "rare"`, `"gold"` or `"secret"` on a card in `config.js`. A rare (★) gets a rainbow foil with glitter and a light that breathes at rest, a gold (★★) an engraved gold finish with sparkles, a secret rare (★★★) a night sky: stars and drifting nebulae on an obsidian face, prismatic lines under the light, a chrome frame whose rainbow turns, a prismatic name and a halo; in front of the deck, each one colours the whole page. In a booster they come out last: a rare with a halo, a gold with its back cracking open, a secret rare in a supernova (it spins faster and faster as its back fills with light, then bursts).
 -   **3D Tilt Physics**: Cards rotate based on mouse position (Desktop) or device orientation (Mobile Gyroscope).
 -   **Swirl Background**: A dynamic, noise-based particle system that creates a living backdrop.
 -   **Infinite Deck**: The stacking logic supports any number of cards automatically.
--   **Boosters & Collection**: The first visit of a session opens on one sealed pack per set. Pick one and slice it with a stroke in any direction: its cards come out face down. Tap to turn the top one over, tap again to send it flying into the Collection button; the rare and gold cards come last, each with its own reveal, and the deck comes back with the new cards. The deck is your collection: every booster opened adds its cards, filed by set. Packs still sealed wait in a dock above the deck navigation; several open a pick among them.
--   **Card Backs**: Click a card (or its flip button) to turn it over and read the details on its back.
--   **Collection Drawer**: A toolbar button opens one tile per set, with its pack and progress: an opened set narrows the deck to its cards, a sealed one opens its booster.
--   **Binder**: A book whose pages turn with a drag or a tap (two pages side by side on wide screens, one on phones), with a divider page and colour tab per set. Sealed sets show mystery pockets and a button to open their booster. A ring-less card binder: its pages are stitched into the spine, and blur as they turn. Picking a card takes it out of its pocket, full size, and it handles like the front card of the deck: it leans towards the mouse or the phone's tilt, a tap turns it over, and a throw sends it back to the binder. It can also be put back, or sent to the front of the deck. The binder is a view of its own: its own background, and in the toolbar a Boosters button counting the boosters still sealed takes the place of Collection.
+-   **Boosters & Collection**: The first visit opens on a lobby: the role and name above one sealed pack per set, each standing on a pool of light over its reflection, with a line saying what it holds, under a spotlight that takes the colour of the pack hovered (on a phone, a carousel to swipe through, the light following the pack in the middle). Pick one and slice it with a stroke in any direction: its cards come out face down. Tap to turn the top one over: it turns in the light a moment, then flies into the Collection button on its own; the rare, gold and secret cards come last, each with its own reveal, and the deck comes back with the new cards. The deck is your collection: every booster opened adds its cards, filed by set. Packs still sealed wait in a dock above the deck navigation; several open a pick among them. The collection is kept in `localStorage`, so it is still there in a new tab or the next day; a set added since the visitor's last visit shows a "New" ribbon.
+-   **Secret Set**: a card wears a "New" badge until it counts as seen: a fifth of a second in front of the deck, a flip, or taken out of its binder pocket. Seeing every card unlocks the `secret` set: its booster shows up in the dock, with a "Let's Talk" secret rare.
+-   **Card Backs**: Click a card (or its flip button) to turn it over and read the details on its back. On a first visit, a hint says how to throw and flip a card, until the visitor does.
+-   **Collection Drawer**: A toolbar button opens one tile per set, with its pack and how many of its cards have been seen: an opened set narrows the deck to its cards, a sealed one opens its booster.
+-   **Binder**: A book whose pages turn with a drag or a tap (two pages side by side on wide screens, one on phones), with a divider page and colour tab per set. Sealed sets show mystery pockets and a button to open their booster; cards never looked at wear a "New" tag. A ring-less card binder: its pages are stitched into the spine, and blur as they turn. Picking a card takes it out of its pocket, full size, and it handles like the front card of the deck: it leans towards the mouse or the phone's tilt, a tap turns it over, and a throw sends it back to the binder. It can also be put back, or sent to the front of the deck. The binder is a view of its own: its own background, and in the toolbar a Boosters button counting the boosters still sealed takes the place of Collection.
 
 ### 🎮 Interactions
 
@@ -38,6 +39,7 @@ This project reimagines the traditional web portfolio as a deck of collectible c
 -   **Deck Navigation**: Collector numbers (`BS 03/05`) on each card, and a scrubber under the deck, cut into one coloured segment per set: drag it to leaf through the deck, at 10 cards or 200.
 -   **Scroll & Keyboard**: Scroll wheel and arrow keys cycle the deck too.
 -   **Deep Links**: `/#projects` opens the deck on the Projects card, `/#kimpay` on a card of After Hours (adding the set to the collection); the address bar follows the card in front.
+-   **English & French**: the language follows the browser, a toolbar button switches it (the page reloads on the same card), and `?lang=fr` forces it in a link.
 -   **Accessible**: Only the front card is focusable, and card changes are announced to screen readers.
 -   **Responsive Design**: Adaptive layout that transforms from a 3D showcase to a touch-friendly mobile view.
 
@@ -60,6 +62,7 @@ export const CONFIG = {
             id: "base",
             code: "BS", // printed on the pack and before each collector number
             name: "Base Set",
+            tagline: "Profile & contact", // under the pack while picking one
             icon: "star", // key of icons.js, for the dividers and binder tabs
             booster: { color: "#f0532b", highlight: "#ffd77a" }, // pack colours
             cards: [
@@ -99,9 +102,28 @@ Its `image` fills the picture frame (`icon` is shown when there is none). A proj
 credits are listed in `public/img/credits.txt`.
 A set's `code` is printed before the collector number (`AH 01/06`).
 
-The opened sets are kept in `sessionStorage` (`CONFIG.BOOSTER_KEY`), so a reload keeps the
-same deck; the booster intro only plays while none is opened. "Reset collection", at the
-bottom of the collection drawer, seals every booster again after a confirmation.
+A set with `secret: true` stays out of sight (packs, drawer, binder, deep links) until every
+card of the other sets has been seen.
+
+The collection is kept in `localStorage`: the sets opened (`CONFIG.BOOSTER_KEY`), the cards
+seen (`CONFIG.SEEN_KEY`) and the sets the visitor already knew about (`CONFIG.KNOWN_KEY`). The
+booster intro only plays while none is opened. "Reset collection", at the bottom of the
+collection drawer, seals every booster again and forgets the cards seen, after a confirmation.
+
+### Card pictures
+
+Each JPEG in `public/img` has an AVIF and a WebP copy next to it, 800px wide at most (twice
+the picture frame); the cards pick the lightest format the browser reads. After adding or
+changing a picture, make its two copies with any converter ([Squoosh](https://squoosh.app),
+sharp, ImageMagick...): same name, resized to 800px wide, AVIF at quality ~52 and WebP at ~76.
+A card whose picture is not a JPEG shows it as is.
+
+### Languages
+
+The texts in `config.js` are in English. `public/js/locales/fr.js` holds the French: the
+interface strings (`ui`), then the card texts, by set id and card slug (or project key),
+merged over the config. Anything left out shows in English, so a new card can be translated
+later. Interface strings in English are in `public/js/locales/en.js`.
 
 ### 2. Visual Themes
 
@@ -130,11 +152,12 @@ Adjust physics and sensitivity in the root of the object.
 
 ### 4. Share Preview
 
-Link previews (LinkedIn, Slack, X) use `public/img/og-image.png`, a 1200×630 screenshot of
-`tools/og-image.html`. After changing the profile card, serve the folder and regenerate it:
+Link previews (LinkedIn, Slack, X) use `public/img/og-image.jpg`, a 1200×630 screenshot of
+`tools/og-image.html`. After changing the profile card, serve the folder and regenerate it
+(Chrome writes a JPEG from the extension):
 
 ```bash
-chrome --headless=new --hide-scrollbars --window-size=1200,630 --virtual-time-budget=10000     --screenshot=public/img/og-image.png http://localhost:8000/tools/og-image.html
+chrome --headless=new --hide-scrollbars --window-size=1200,630 --virtual-time-budget=10000     --screenshot=public/img/og-image.jpg http://localhost:8000/tools/og-image.html
 ```
 
 The `og:*` tags in `index.html` need absolute URLs: update them if the site moves.
