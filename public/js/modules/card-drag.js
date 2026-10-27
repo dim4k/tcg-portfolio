@@ -108,7 +108,7 @@ export class CardDrag {
             if (drag.control) grabFromControl(drag.card, drag.pointerId);
             this.deckManager.isDragging = true;
             drag.card.classList.add("is-dragging");
-            drag.card.style.setProperty("--glare-opacity", "0");
+            drag.card.setLight({ glare: 0 });
         }
 
         drag.card.style.transform = followPointer(drag, e);

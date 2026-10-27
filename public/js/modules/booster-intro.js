@@ -13,6 +13,8 @@ const CUT_LENGTH = 0.5;
 const TAP_DISTANCE = 8;
 // The cards start rising once the two halves are on their way.
 const CUT_SETTLE = 140;
+// The cards of the picked pack are made this long after it is picked, once it has grown.
+const PREPARE_DELAY = 650;
 // Flight of the two halves.
 const HALF_FLIGHT = 950;
 // Reveal: the cards rise out of the pack (one after the other from the bottom of the
@@ -44,6 +46,8 @@ const RARE_HOLD = 400;
 const INSPECT_CLOSER = 1.25;
 const INSPECT_FIT = 0.9;
 const INSPECT_TILT = 16;
+// The light over its face moves slowly: 30 repaints a second look as smooth as 120.
+const INSPECT_LIGHT_MS = 1000 / 30 - 4;
 const TO_COLLECTION = 640;
 const FLUSH_STAGGER = 70;
 // A revealed card is at most this share of the viewport width, and of the pack's height.
@@ -179,10 +183,12 @@ export class BoosterIntro {
         return this.slots.get(id)?.querySelector(".pack:not(.pack-half, .pack-copy)");
     }
 
-    /** The lobby's spotlight takes the colour of the pack `id`. */
+    /** The lobby's spotlight takes the colour of the pack `id` (on what it lights: index.html). */
     light(id) {
         const set = CONFIG.SETS.find((s) => s.id === id);
-        if (set) this.loader.style.setProperty("--light", set.booster.highlight);
+        if (!set) return;
+        this.lit ??= this.loader.querySelectorAll(".booster-light, .booster-role");
+        this.lit.forEach((el) => el.style.setProperty("--light", set.booster.highlight));
     }
 
     /**
@@ -462,11 +468,28 @@ export class BoosterIntro {
 
     focus(id) {
         this.target = id;
-        this.slots.forEach((slot, key) => slot.classList.toggle("is-target", key === id));
+        // The picked pack grows by its scale, not its width: a width changing on every frame
+        // lays out and repaints the whole pack (all in cqw) each time.
+        const slot = this.slots.get(id);
+        const before = slot.offsetWidth;
+        this.slots.forEach((s, key) => s.classList.toggle("is-target", key === id));
         this.light(id);
         this.setPhase("focus");
+        const after = slot.offsetWidth;
+        if (before && after && before !== after && !this.fx.calm) {
+            slot.animate([{ scale: before / after }, { scale: 1 }], {
+                duration: 600,
+                easing: "cubic-bezier(0.3, 1.2, 0.45, 1)",
+            });
+        }
         this.untiltAll();
         this.pack(id).focus({ preventScroll: true });
+        // Once the pack has grown, not while: a cut sooner than that builds them itself.
+        clearTimeout(this.prepareTimer);
+        this.clearCards();
+        this.prepareTimer = setTimeout(() => {
+            if (this.phase === "focus" && !this.cutting && this.target === id) this.prepare();
+        }, PREPARE_DELAY);
     }
 
     onPackClick(e) {
@@ -662,6 +685,54 @@ export class BoosterIntro {
 
     /* ---------- Reveal ---------- */
 
+    clearCards() {
+        this.revealEl.querySelectorAll(".reveal-card").forEach((el) => el.remove());
+        this.items = [];
+    }
+
+    /**
+     * The cards of the target pack, face down and out of sight until it is cut: made while
+     * the visitor lines up the stroke, so the cut never waits on a dozen cards being built.
+     */
+    prepare() {
+        this.clearCards();
+        const set = this.set;
+        // Commons first, then the rarities in rising order: the best card closes the pack.
+        const rank = (data) => Object.keys(CONFIG.RARITIES).indexOf(data.rarity) + 1;
+        const cards = setCards(set)
+            .map((data, i) => ({ data, i }))
+            .sort((a, b) => rank(a.data) - rank(b.data) || a.i - b.i)
+            .map(({ data }) => data);
+        this.items = cards.map((data, i) => {
+            const el = document.createElement("div");
+            el.className = "reveal-card is-down";
+            el.style.cssText = packStyle(set);
+            el.style.visibility = "hidden";
+            el.style.zIndex = cards.length - i;
+            const card = document.createElement("tcg-card");
+            // Rendered as the front card, so its picture loads at once; face down, it is not,
+            // so a rare's idle light does not repaint the back over it (shown() restores it).
+            card.dataset.pos = "0";
+            card.inert = true;
+            card.data = data;
+            delete card.dataset.pos;
+            const back = document.createElement("div");
+            back.className = "reveal-back";
+            back.innerHTML = `<b>${set.code}</b>`;
+            el.append(card, back);
+            this.revealEl.append(el);
+            const rarity = CONFIG.RARITIES[data.rarity] ? data.rarity : null;
+            return { el, card, rarity, t: {} };
+        });
+    }
+
+    /** The card is face up: it plays its shine, and its idle light again. */
+    shown(item) {
+        item.shown = true;
+        item.card.dataset.pos = "0";
+        item.card.playShine();
+    }
+
     /** The cards of the pack rise out of it, face down, stacked; the first tap is the visitor's. */
     async reveal() {
         const set = this.set;
@@ -681,31 +752,11 @@ export class BoosterIntro {
         this.rays.style.left = `${this.center.x}px`;
         this.rays.style.top = `${this.center.y}px`;
 
-        // Commons first, then the rarities in rising order: the best card closes the pack.
-        const rank = (data) => Object.keys(CONFIG.RARITIES).indexOf(data.rarity) + 1;
-        const cards = setCards(set)
-            .map((data, i) => ({ data, i }))
-            .sort((a, b) => rank(a.data) - rank(b.data) || a.i - b.i)
-            .map(({ data }) => data);
-        this.items = cards.map((data, i) => {
-            const el = document.createElement("div");
-            el.className = "reveal-card is-down";
-            el.style.cssText = packStyle(set);
+        if (!this.items.length) this.prepare();
+        this.items.forEach(({ el }) => {
             el.style.left = `${this.center.x}px`;
             el.style.top = `${this.center.y}px`;
-            el.style.zIndex = cards.length - i;
-            const card = document.createElement("tcg-card");
-            // Shown at once, so its picture loads at once.
-            card.dataset.pos = "0";
-            card.inert = true;
-            card.data = data;
-            const back = document.createElement("div");
-            back.className = "reveal-back";
-            back.innerHTML = `<b>${set.code}</b>`;
-            el.append(card, back);
-            this.revealEl.append(el);
-            const rarity = CONFIG.RARITIES[data.rarity] ? data.rarity : null;
-            return { el, card, rarity, t: {} };
+            el.style.visibility = "";
         });
 
         // Back on screen: the hint, the skip link, and Collection, where the cards will go.
@@ -830,6 +881,7 @@ export class BoosterIntro {
         const end = INSPECT + INSPECT_HOLD + (item.rarity ? RARE_HOLD : 0);
         return new Promise((resolve) => {
             const begin = performance.now();
+            let lit = -Infinity;
             const step = (now) => {
                 const time = now - begin;
                 const k = Math.min(1, time / INSPECT);
@@ -849,7 +901,12 @@ export class BoosterIntro {
                     s: from + (close - from) * near,
                 };
                 item.el.style.transform = pose(item.t);
-                setCardVars(item.card, { mx: 50 + nx * 45, my: 50 + ny * 45, glare: hand });
+                // The turn follows every frame (the compositor only moves the card); the light
+                // repaints the whole card, at most every INSPECT_LIGHT_MS.
+                if (now - lit >= INSPECT_LIGHT_MS || (k === 1 && lit < begin + INSPECT)) {
+                    lit = now;
+                    setCardVars(item.card, { mx: 50 + nx * 45, my: 50 + ny * 45, glare: hand });
+                }
                 if (hurried.now || time >= end) resolve();
                 else requestAnimationFrame(step);
             };
@@ -867,8 +924,7 @@ export class BoosterIntro {
         item.el.classList.remove("is-down");
         item.t.ry = -90;
         await this.move(item, { ry: 0, y: 0, s: s * 1.04 }, { duration: FLIP_HALF, easing: "cubic-bezier(0,0,.3,1)" });
-        item.shown = true;
-        item.card.playShine();
+        this.shown(item);
     }
 
     /** A rare shakes in place, growing, then bursts into light before it turns. */
@@ -881,7 +937,7 @@ export class BoosterIntro {
             via: trembling(s, 6, 0.006),
         });
         fx.flash(0.9);
-        fx.shake(document.body, 1.1);
+        fx.shake(this.revealEl, 1.1);
         fx.shock(this.center.x, this.center.y);
         fx.burst(this.center.x, this.center.y, ["#ffffff", this.set.booster.highlight, "#ffd77a", "#ff6ad5"], 120, 12);
         navigator.vibrate?.(30);
@@ -974,7 +1030,7 @@ export class BoosterIntro {
         });
         item.el.classList.remove("is-down");
         fx.flash(0.95);
-        fx.shake(document.body, 1);
+        fx.shake(this.revealEl, 1);
         fx.shock(this.center.x, this.center.y);
         fx.burst(this.center.x, this.center.y, ["#fff3c4", "#f3d27a", "#ffffff", "#c9a23f"], 130, 12);
         navigator.vibrate?.(30);
@@ -998,8 +1054,7 @@ export class BoosterIntro {
             })
         );
         shards.forEach(({ shard }) => shard.remove());
-        item.shown = true;
-        item.card.playShine();
+        this.shown(item);
     }
 
     /**
@@ -1024,7 +1079,7 @@ export class BoosterIntro {
         });
         item.el.classList.remove("is-down", "is-charging");
         fx.flash(1);
-        fx.shake(document.body, 1.3);
+        fx.shake(this.revealEl, 1.3);
         fx.shock(x, y);
         fx.burst(x, y, ["#ffffff", "#ffc2ec", "#bff3ff", "#dccbff", "#fff3a0"], 170, 15);
         fx.burst(x, y, ["#ffffff", "#e6dcff"], 60, 6);
@@ -1034,8 +1089,7 @@ export class BoosterIntro {
             duration: NOVA_LAND,
             easing: "cubic-bezier(.2,1.5,.4,1)",
         });
-        item.shown = true;
-        item.card.playShine();
+        this.shown(item);
     }
 
     raysOn(on) {
@@ -1098,7 +1152,7 @@ export class BoosterIntro {
     collect() {
         const deck = this.deckManager;
         deck.addSet(this.set);
-        this.revealEl.querySelectorAll(".reveal-card").forEach((el) => el.remove());
+        this.clearCards();
         this.raysOn(false);
         document.body.classList.remove("booster-revealing");
         this.hide();
@@ -1124,6 +1178,7 @@ export class BoosterIntro {
         }
         if (this.cutting) return;
         window.removeEventListener("keydown", this.onKeydown);
+        this.clearCards();
         this.hide();
         // First visit: skipping still deals a deck, the first set's.
         if (!this.deckManager.opened.length) this.deckManager.addSet(CONFIG.SETS[0]);
