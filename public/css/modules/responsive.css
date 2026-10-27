@@ -61,6 +61,16 @@
         gap: 8px;
     }
 
+    /* Narrowed to a set, Collection shows its code: the name would push the toolbar over
+       the edge of the screen. */
+    .collection-btn.is-filtered .toolbar-label {
+        display: none;
+    }
+
+    .collection-btn.is-filtered .toolbar-code {
+        display: inline;
+    }
+
     .deck-nav {
         bottom: max(12px, env(safe-area-inset-bottom));
     }
@@ -68,5 +78,16 @@
     /* The toolbar spans the width: the toast comes below it. */
     .toast {
         top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+    }
+}
+
+/* The smallest phones: the toolbar keeps its icons, its words stay for screen readers. */
+@media (max-width: 360px) {
+    .toolbar-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
     }
 }

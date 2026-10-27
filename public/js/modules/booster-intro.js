@@ -812,11 +812,15 @@ export class BoosterIntro {
         if (!top) return;
         const total = setCards(this.set).length;
         const at = `${total - this.items.length + 1} / ${total}`;
-        // A rare or a gold glows once on top of the stack, not before: it would give itself away.
+        // A rare or better glows once on top of the stack, not before: it would give itself
+        // away. The rays behind it take the colours of its rarity (effects.css).
         const rarity = CONFIG.RARITIES[top.rarity];
         if (rarity && !top.shown) {
             top.el.classList.add(`is-${top.rarity}`);
-            if (rarity.reveal === "halo" || rarity.rays) this.raysOn(true);
+            if (rarity.rays) {
+                this.rays.dataset.rarity = top.rarity;
+                this.raysOn(true);
+            }
         }
         const label = rarity && rarityLabel(top.rarity);
         let text = rarity ? t("booster.rarityInside", { rarity: label }) : t("booster.tapReveal");
@@ -936,10 +940,11 @@ export class BoosterIntro {
             easing: "linear",
             via: trembling(s, 6, 0.006),
         });
-        fx.flash(0.9);
-        fx.shake(this.revealEl, 1.1);
+        // Below a gold's: the first step up from a common, in the colours of the holo foil.
+        fx.flash(0.6);
+        fx.shake(this.revealEl, 0.6);
         fx.shock(this.center.x, this.center.y);
-        fx.burst(this.center.x, this.center.y, ["#ffffff", this.set.booster.highlight, "#ffd77a", "#ff6ad5"], 120, 12);
+        fx.burst(this.center.x, this.center.y, ["#ffffff", "#ff8fb1", "#ffe08a", "#8fffc8", "#8fd8ff", "#c8a8ff"], 80, 10);
         navigator.vibrate?.(30);
     }
 

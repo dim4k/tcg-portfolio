@@ -346,8 +346,7 @@
     justify-content: space-between;
     gap: 3cqw;
     font: 600 3.2cqw/1.3 ui-monospace, Consolas, monospace;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    letter-spacing: 0.03em;
     color: rgba(255, 255, 255, 0.85);
 }
 
@@ -359,6 +358,24 @@
     color: #24170a;
     font: 700 3.6cqw/1 "Poppins", sans-serif;
     cursor: pointer;
+}
+
+/* An opened set: the link to it, quieter than the call to open a sealed one. */
+.divider-share {
+    display: inline-flex;
+    align-items: center;
+    gap: 2cqw;
+    padding: 2.4cqw 3.6cqw;
+    border: 0.3cqw solid color-mix(in oklab, var(--set-highlight) 60%, transparent);
+    border-radius: 3cqw;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--set-highlight);
+    font: 700 3.4cqw/1 "Poppins", sans-serif;
+    cursor: pointer;
+}
+
+.divider-share:hover {
+    background: rgba(0, 0, 0, 0.4);
 }
 
 .sheet-head {
@@ -411,7 +428,8 @@ button.pocket {
 }
 
 button.pocket:focus-visible,
-.divider-open:focus-visible {
+.divider-open:focus-visible,
+.divider-share:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 3px;
 }

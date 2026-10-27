@@ -3,6 +3,9 @@
 const cards = (n) => (n === 1 ? "1 carte" : `${n} cartes`);
 const sets = (n) => (n === 1 ? "1 set" : `${n} sets`);
 const boosters = (n) => (n === 1 ? "1 booster" : `${n} boosters`);
+// "0 vue", "1 vue", "2 vues": in French, zero takes the singular.
+const seenOf = (seen, total) => `${seen} ${seen > 1 ? "vues" : "vue"} sur ${total}`;
+const cardsSeenOf = (seen, total) => `${seen} ${seen > 1 ? "cartes vues" : "carte vue"} sur ${total}`;
 
 export const FR = {
     ui: {
@@ -24,14 +27,17 @@ export const FR = {
 
         "card.demo": "Démo",
         "card.source": "Code",
-        "card.number": "N°",
         "card.tryIt": "Essayer",
         "card.builtWith": "Fait en {language}",
         "card.privateSource": "Code privé",
         "card.years": "{n} ans",
         "card.copy": "Copier l'adresse {label}",
         "card.copied": "Copié",
-        "card.openSet": "Ouvrir le set",
+        "card.openSet": "Voir le set",
+        "card.openSetLabel": "Ouvrir le set {name} dans le classeur",
+        "card.since": "DEPUIS",
+        "card.share": "Partager cette carte",
+        "share.copied": "Lien copié",
         "card.showBack": "Voir le dos de la carte",
         "card.showFront": "Voir le recto de la carte",
         "card.new": "Nouveau",
@@ -65,16 +71,17 @@ export const FR = {
         "collection.title": "Collection",
         "collection.boosters": "Boosters",
         "collection.close": "Fermer",
-        "collection.summary": ({ owned, seen, total }) => `${cards(owned)} · ${seen} / ${total} vues`,
+        "collection.summary": ({ seen, total }) => cardsSeenOf(seen, total),
         "collection.unlockHint": ({ total }) => `Voyez les ${total} cartes pour débloquer un booster secret`,
         "collection.complete": "Collection complète",
         "collection.all": "Toutes les cartes",
         "collection.sets": ({ n }) => sets(n),
-        "collection.tileSeen": "{seen} / {total} vues",
+        "collection.tileSeen": ({ seen, total }) => seenOf(seen, total),
         "collection.tileSealed": ({ n }) => `Scellé · ${cards(n)}`,
         "collection.tileOpenLabel": "{name}, {seen} cartes vues sur {total} : n'afficher que celles-ci",
         "collection.tileSealedLabel": "{name}, scellé : ouvrir son booster",
         "collection.buttonFiltered": "Collection, seulement {name}",
+        "collection.share": "Partager le set {name}",
         "collection.reset": "Réinitialiser la collection",
         "collection.resetAsk": "Resceller tous les boosters et tout recommencer ?",
         "collection.cancel": "Annuler",
@@ -90,9 +97,10 @@ export const FR = {
         "binder.putBack": "Ranger",
         "binder.showInDeck": "Voir dans le deck",
         "binder.cover": "Collection",
-        "binder.coverCount": ({ seen, total, n }) => `${seen} / ${total} vues · ${sets(n)}`,
+        "binder.coverCount": ({ seen, total, n }) => `${cardsSeenOf(seen, total)} · ${sets(n)}`,
         "binder.series": "Série {n}",
-        "binder.dividerSeen": "{seen} / {total} vues",
+        "binder.dividerSeen": ({ seen, total }) => seenOf(seen, total),
+        "binder.share": "Partager",
         "binder.dividerSealed": ({ n }) => `Scellé · ${cards(n)}`,
         "binder.openBooster": "Ouvrir le booster",
         "binder.tabSealed": "{name}, scellé",
@@ -270,7 +278,7 @@ export const FR = {
             tagline: "La vie hors du travail",
             cards: {
                 cycling: {
-                    header: { name: "Vélo", hpLabel: "N°" },
+                    header: { name: "Vélo" },
                     body: {
                         row1: {
                             desc: "Les sacoches sur le vélo et quelques jours sur la route, de Nantes jusqu'où ça mène.",
@@ -280,7 +288,7 @@ export const FR = {
                     footer: { text: "Base : Nantes" },
                 },
                 photography: {
-                    header: { name: "Photographie", hpLabel: "N°" },
+                    header: { name: "Photographie" },
                     body: {
                         row1: {
                             title: "À travers l'objectif",
@@ -291,7 +299,7 @@ export const FR = {
                     footer: { text: "Partagé sur Instagram" },
                 },
                 cinema: {
-                    header: { name: "Cinéma", hpLabel: "N°" },
+                    header: { name: "Cinéma" },
                     body: {
                         row1: {
                             title: "Le grand écran",
@@ -304,7 +312,6 @@ export const FR = {
                     },
                 },
                 nantes: {
-                    header: { hpLabel: "N°" },
                     body: {
                         row1: {
                             title: "Art et industrie",
@@ -315,7 +322,7 @@ export const FR = {
                     footer: { text: "Base : Nantes" },
                 },
                 follow: {
-                    header: { name: "Me suivre", hpLabel: "N°" },
+                    header: { name: "Me suivre" },
                     body: {
                         row1: {
                             title: "Vélo, photos et films",

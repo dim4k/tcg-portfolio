@@ -40,7 +40,8 @@
 - **Boosters**: slice a pack open, flip the cards one by one, watch them fly into your collection.
 - **Binder**: a page-turning book with one tab per set, cards to pull out and handle full size.
 - **Secret set**: see every card to unlock a hidden booster.
-- **Deck navigation**: throw, scroll, arrow keys, a scrubber, and deep links (`/#projects`).
+- **Deck navigation**: throw, scroll, arrow keys, a scrubber, and deep links to a card (`/#projects`) or a whole set (`/#after-hours`).
+- **Sharing**: every card, and every opened set in the collection and the binder, has a share button: the phone's share sheet, or the link copied on a computer.
 - **English & French**, accessible, responsive, and the collection survives in `localStorage`.
 
 ## Quick start

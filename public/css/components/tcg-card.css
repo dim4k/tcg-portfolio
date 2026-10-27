@@ -504,8 +504,13 @@ picture {
     text-shadow: none;
 }
 
+/* Opens a set in the binder: in its booster's colours, and as wide as its label needs while
+   the links beside it share what is left. */
 .action-btn.explore {
-    --brand: var(--bg-to, #333);
+    --brand: var(--set-color, var(--bg-to, #333));
+    flex: 0 0 auto;
+    border-color: color-mix(in srgb, var(--set-highlight, #fff) 55%, transparent);
+    background: color-mix(in srgb, var(--set-color, #333) 45%, transparent);
 }
 
 /* Footer */
@@ -541,7 +546,9 @@ picture {
     white-space: nowrap;
 }
 
-.flip-btn {
+/* The two round buttons at the end of the footer: share the card, turn it over. */
+.flip-btn,
+.share-btn {
     display: none;
     width: 24px;
     height: 24px;
@@ -557,15 +564,21 @@ picture {
         color 0.3s ease, transform 0.3s ease;
 }
 
-:host([has-back]) .flip-btn {
+:host([has-back]) .flip-btn,
+:host([shareable]) .share-btn {
     display: grid;
 }
 
-.flip-btn:hover {
+.flip-btn:hover,
+.share-btn:hover {
     transform: rotate(-90deg) scale(1.15);
     border-color: var(--glass-60);
     background: var(--glass-20);
     color: white;
+}
+
+.share-btn:hover {
+    transform: scale(1.15);
 }
 
 /* ==========================================
@@ -846,7 +859,8 @@ picture {
 :host([thumbnail]) .glitter-layer,
 :host([thumbnail]) .holographic-grid,
 :host([thumbnail]) .glare,
-:host([thumbnail]) .flip-btn {
+:host([thumbnail]) .flip-btn,
+:host([thumbnail]) .share-btn {
     display: none;
 }
 
@@ -948,12 +962,30 @@ picture {
         font-size: 13px;
     }
 
+    /* Three buttons in a row (a set's, then two links): tighter, so each keeps its icon. */
+    .action-btn-group:has(> :nth-child(3)) {
+        gap: 6px;
+    }
+
+    .action-btn-group:has(> :nth-child(3)) .action-btn {
+        padding-inline: 6px;
+        letter-spacing: 0;
+    }
+}
+
+/* The smallest phones: three buttons in a row keep their words, the links drop their icon. */
+@media (max-width: 360px) {
+    .action-btn-group:has(> :nth-child(3)) .action-btn:not(.explore) svg {
+        display: none;
+    }
+
     .card-footer {
         font-size: 10px;
         min-height: 40px;
     }
 
-    .flip-btn {
+    .flip-btn,
+    .share-btn {
         width: 30px;
         height: 30px;
         font-size: 12px;
@@ -974,6 +1006,7 @@ picture {
 
 /* Visible focus ring for keyboard users */
 .flip-btn:focus-visible,
+.share-btn:focus-visible,
 .action-btn:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
@@ -1374,6 +1407,7 @@ picture {
     .glitter-layer,
     .glitter-layer::before,
     .flip-btn,
+    .share-btn,
     .action-btn,
     .action-btn::before {
         transition: none !important;
@@ -1387,7 +1421,8 @@ picture {
     /* transition:none only removes the tween; the jump has to go too. */
     .action-btn:hover,
     .action-btn:active,
-    .flip-btn:hover {
+    .flip-btn:hover,
+    .share-btn:hover {
         transform: none;
     }
 

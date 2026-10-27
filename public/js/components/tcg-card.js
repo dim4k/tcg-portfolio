@@ -1,7 +1,7 @@
 import { CONFIG } from "../config.js";
 import { Utils } from "../modules/utils.js";
 import { icon } from "../modules/icons.js";
-import { t } from "../i18n.js";
+import { localizeSet, t } from "../i18n.js";
 
 const template = document.createElement("template");
 template.innerHTML = `
@@ -55,6 +55,7 @@ template.innerHTML = `
                 <span class="weakness"></span>
                 <span class="footer-end">
                     <span class="set-number"></span>
+                    <button class="share-btn" type="button"></button>
                     <button class="flip-btn" type="button"></button>
                 </span>
             </div>
@@ -85,6 +86,7 @@ template.innerHTML = `
                 <span class="back-name"></span>
                 <span class="footer-end">
                     <span class="set-number"></span>
+                    <button class="share-btn" type="button"></button>
                     <button class="flip-btn" type="button"></button>
                 </span>
             </div>
@@ -98,6 +100,9 @@ template.innerHTML = `
 template.content
     .querySelectorAll(".flip-btn")
     .forEach((btn) => btn.appendChild(icon("rotate")));
+template.content
+    .querySelectorAll(".share-btn")
+    .forEach((btn) => btn.appendChild(icon("share-nodes")));
 
 // Component styles are parsed once into a single constructable stylesheet that
 // every <tcg-card> instance adopts, instead of re-parsing a <link> per card.
@@ -173,11 +178,21 @@ class TcgCard extends HTMLElement {
         this.litLayers = [...this.shadowRoot.querySelectorAll(LIT_LAYERS)];
         this.syncFaces();
 
-        // One delegated listener for both flip buttons, and nothing to leak on detach.
+        // One delegated listener for the buttons of both faces, and nothing to leak on detach.
         this.shadowRoot.addEventListener("click", (e) => {
             if (e.target.closest(".flip-btn")) {
                 e.stopPropagation();
                 this.toggleFlip();
+            } else if (e.target.closest(".share-btn")) {
+                // The link to this card (deep-link.js hands it out).
+                e.stopPropagation();
+                this.dispatchEvent(
+                    new CustomEvent("share-link", {
+                        detail: { hash: this._data.slug, title: this._data.header.name },
+                        bubbles: true,
+                        composed: true,
+                    })
+                );
             }
         });
 
@@ -497,11 +512,20 @@ class TcgCard extends HTMLElement {
         return wrap;
     }
 
+    // In the colours and with the icon of the set it opens, like its booster and binder tab.
     expansionButton(expansionId) {
+        const set = CONFIG.SETS.find((s) => s.id === expansionId);
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "action-btn explore";
-        btn.append(icon("book-open"), ` ${t("card.openSet")}`);
+        btn.append(icon(set?.icon || "book-open"), ` ${t("card.openSet")}`);
+        if (set) {
+            const label = t("card.openSetLabel", { name: localizeSet(set).name });
+            btn.setAttribute("aria-label", label);
+            btn.title = label;
+            btn.style.setProperty("--set-color", set.booster.color);
+            btn.style.setProperty("--set-highlight", set.booster.highlight);
+        }
         btn.addEventListener("click", (e) => {
             e.stopPropagation();
             this.dispatchEvent(
@@ -518,6 +542,12 @@ class TcgCard extends HTMLElement {
     renderFooter(data) {
         this.shadowRoot.querySelector(".weakness").textContent =
             data.footer.text;
+        // A card with a slug has an address of its own, to share.
+        this.toggleAttribute("shareable", Boolean(data.slug));
+        this.shadowRoot.querySelectorAll(".share-btn").forEach((btn) => {
+            btn.setAttribute("aria-label", t("card.share"));
+            btn.title = t("card.share");
+        });
         const symbol = CONFIG.RARITIES[data.rarity]?.symbol;
         const label = [symbol, data.setLabel].filter(Boolean).join(" ");
         this.shadowRoot

@@ -32,11 +32,13 @@ export class DeckManager {
     /**
      * @param {object[]} opened Sets already in the collection. Empty while a booster intro is
      *     pending: the deck is dealt when the first pack is opened.
-     * @param {{set: object, index: number}} [start] Card to show in front.
+     * @param {{set: object, index: number, whole?: boolean}} [start] Card to show in front;
+     *     `whole`: the deck narrowed to its set (a link to a set, deep-link.js).
      */
     init(opened, start = null) {
         this.opened = CONFIG.SETS.filter((set) => opened.includes(set));
         if (this.opened.length) Collection.save(this.opened);
+        if (start?.whole) this.filter = start.set.id;
         this.deal(start);
         this.syncBackground();
 
@@ -73,12 +75,22 @@ export class DeckManager {
      * collection again, starting on the first new card.
      */
     addSet(set) {
-        if (!this.has(set)) {
-            this.opened = CONFIG.SETS.filter((s) => s === set || this.opened.includes(s));
-            Collection.save(this.opened);
-        }
+        this.collect(set);
         this.filter = "all";
         this.deal({ set, index: 0 });
+    }
+
+    /** Narrow the deck to `set`, adding it to the collection if needed (a link to a set). */
+    showSet(set) {
+        this.collect(set);
+        this.filter = set.id;
+        this.deal();
+    }
+
+    collect(set) {
+        if (this.has(set)) return;
+        this.opened = CONFIG.SETS.filter((s) => s === set || this.opened.includes(s));
+        Collection.save(this.opened);
     }
 
     /** Narrow the deck to one set (its id), or show them all ("all"). */

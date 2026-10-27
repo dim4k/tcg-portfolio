@@ -2,6 +2,8 @@
 const cards = (n) => (n === 1 ? "1 card" : `${n} cards`);
 const sets = (n) => (n === 1 ? "1 set" : `${n} sets`);
 const boosters = (n) => (n === 1 ? "1 booster" : `${n} boosters`);
+const seenOf = (seen, total) => `${seen} of ${total} seen`;
+const cardsSeenOf = (seen, total) => `${seen} of ${total} cards seen`;
 
 export const EN = {
     ui: {
@@ -22,14 +24,17 @@ export const EN = {
 
         "card.demo": "Live demo",
         "card.source": "Source",
-        "card.number": "NO.",
         "card.tryIt": "Try It",
         "card.builtWith": "Built with {language}",
         "card.privateSource": "Private source",
         "card.years": "{n}Y",
         "card.copy": "Copy {label} address",
         "card.copied": "Copied",
-        "card.openSet": "Open the set",
+        "card.openSet": "View set",
+        "card.openSetLabel": "Open the {name} set in the binder",
+        "card.since": "SINCE",
+        "card.share": "Share this card",
+        "share.copied": "Link copied",
         "card.showBack": "Show the back of the card",
         "card.showFront": "Show the front of the card",
         "card.new": "New",
@@ -63,16 +68,17 @@ export const EN = {
         "collection.title": "Collection",
         "collection.boosters": "Boosters",
         "collection.close": "Close",
-        "collection.summary": ({ owned, seen, total }) => `${cards(owned)} · ${seen} / ${total} seen`,
+        "collection.summary": ({ seen, total }) => cardsSeenOf(seen, total),
         "collection.unlockHint": ({ total }) => `See all ${total} cards to unlock a secret booster`,
         "collection.complete": "Collection complete",
         "collection.all": "All cards",
         "collection.sets": ({ n }) => sets(n),
-        "collection.tileSeen": "{seen} / {total} seen",
+        "collection.tileSeen": ({ seen, total }) => seenOf(seen, total),
         "collection.tileSealed": ({ n }) => `Sealed · ${cards(n)}`,
         "collection.tileOpenLabel": "{name}, {seen} of {total} cards seen: show only these",
         "collection.tileSealedLabel": "{name}, sealed: open its booster",
         "collection.buttonFiltered": "Collection, showing {name} only",
+        "collection.share": "Share the {name} set",
         "collection.reset": "Reset collection",
         "collection.resetAsk": "Seal every booster again and start over?",
         "collection.cancel": "Cancel",
@@ -88,9 +94,10 @@ export const EN = {
         "binder.putBack": "Put back",
         "binder.showInDeck": "Show in deck",
         "binder.cover": "Collection",
-        "binder.coverCount": ({ seen, total, n }) => `${seen} / ${total} seen · ${sets(n)}`,
+        "binder.coverCount": ({ seen, total, n }) => `${cardsSeenOf(seen, total)} · ${sets(n)}`,
         "binder.series": "Series {n}",
-        "binder.dividerSeen": "{seen} / {total} seen",
+        "binder.dividerSeen": ({ seen, total }) => seenOf(seen, total),
+        "binder.share": "Share",
         "binder.dividerSealed": ({ n }) => `Sealed · ${cards(n)}`,
         "binder.openBooster": "Open the booster",
         "binder.tabSealed": "{name}, sealed",

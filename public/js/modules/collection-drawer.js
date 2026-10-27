@@ -2,14 +2,16 @@ import { CONFIG } from "../config.js";
 import { setCards } from "./card-renderer.js";
 import { packMarkup, packStyle } from "./booster-pack.js";
 import { Collection } from "./collection.js";
+import { icon } from "./icons.js";
 import { localizeSet, t } from "../i18n.js";
 
 /**
  * The collection drawer, opened from the toolbar: one tile per set on offer
  * (Collection.sets()), with its pack and how many of its cards have been seen. An opened set
- * narrows the deck to its cards; a sealed one opens its booster. The toolbar button names the
- * set the deck is narrowed to; while a booster is revealed, its badge counts the cards it
- * catches (the sealed boosters have the dock).
+ * narrows the deck to its cards, and has a button sharing the link to it; a sealed one opens
+ * its booster. The toolbar button names the set the deck is narrowed to (its code on a phone);
+ * while a booster is revealed, its badge counts the cards it catches (the sealed boosters
+ * have the dock).
  */
 export class CollectionDrawer {
     constructor(deckManager) {
@@ -29,6 +31,15 @@ export class CollectionDrawer {
             // A click on the backdrop lands on the dialog element itself.
             if (e.target === this.dialog) {
                 this.dialog.close();
+                return;
+            }
+            const share = e.target.closest(".collection-share");
+            if (share) {
+                document.dispatchEvent(
+                    new CustomEvent("share-link", {
+                        detail: { hash: share.dataset.share, title: share.dataset.title },
+                    })
+                );
                 return;
             }
             const tile = e.target.closest(".collection-tile");
@@ -100,6 +111,8 @@ export class CollectionDrawer {
         const set = CONFIG.SETS.find((s) => s.id === deck.filter);
         const name = set && localizeSet(set).name;
         this.button.querySelector(".toolbar-label").textContent = set ? name : t("collection.title");
+        // A set's name would not fit a phone's toolbar: it shows its code (responsive.css).
+        this.button.querySelector(".toolbar-code").textContent = set ? set.code : "";
         this.button.classList.toggle("is-filtered", Boolean(set));
         this.button.style.setProperty("--set-color", set ? set.booster.highlight : "");
         this.button.setAttribute(
@@ -113,7 +126,7 @@ export class CollectionDrawer {
         const owned = deck.opened.reduce((n, set) => n + setCards(set).length, 0);
         const progress = Collection.progress();
         const complete = Collection.isComplete();
-        this.summary.textContent = t("collection.summary", { owned, ...progress });
+        this.summary.textContent = t("collection.summary", progress);
         // What the progress leads to: a secret booster, then nothing more to find.
         this.goal.textContent = complete
             ? t("collection.complete")
@@ -170,7 +183,21 @@ export class CollectionDrawer {
                     ? t("collection.tileOpenLabel", { name, seen, total: count })
                     : t("collection.tileSealedLabel", { name })
             );
-            return tile;
+            // A link to the set alone (deep-link.js). Not a secret one: it would open nothing
+            // for someone who has not unlocked it.
+            if (!open || set.secret) return tile;
+            const cell = document.createElement("div");
+            cell.className = "collection-cell";
+            const share = document.createElement("button");
+            share.type = "button";
+            share.className = "collection-share";
+            share.dataset.share = set.id;
+            share.dataset.title = name;
+            share.setAttribute("aria-label", t("collection.share", { name }));
+            share.title = t("collection.share", { name });
+            share.append(icon("share-nodes"));
+            cell.append(tile, share);
+            return cell;
         });
 
         this.tiles.replaceChildren(all, ...tiles);

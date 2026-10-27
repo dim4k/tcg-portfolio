@@ -334,6 +334,16 @@ export class BinderView {
                 btn.dataset.open = set.id;
                 btn.textContent = t("binder.openBooster");
                 state.append(btn);
+            } else if (!set.secret) {
+                // The link to this set alone (deep-link.js); a secret one would open nothing.
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "divider-share";
+                btn.dataset.share = set.id;
+                btn.dataset.title = name;
+                btn.setAttribute("aria-label", t("collection.share", { name }));
+                btn.append(icon("share-nodes"), ` ${t("binder.share")}`);
+                state.append(btn);
             }
             return el;
         }
@@ -600,6 +610,15 @@ export class BinderView {
 
     /** A pocket or a button of the book was picked. @returns {boolean} Whether it was one. */
     activate(target) {
+        const share = target.closest("[data-share]");
+        if (share) {
+            document.dispatchEvent(
+                new CustomEvent("share-link", {
+                    detail: { hash: share.dataset.share, title: share.dataset.title },
+                })
+            );
+            return true;
+        }
         const open = target.closest("[data-open]");
         if (open) {
             this.close();

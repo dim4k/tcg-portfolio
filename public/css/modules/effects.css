@@ -55,22 +55,102 @@
     color: var(--hi);
 }
 
-/* A rare or a gold, once on top of the stack: it glows through its back. */
+/* A rare or better, once on top of the stack, glows through its back, more and more from
+   rare to secret. The halos are drawn once in a pseudo-element behind the back, and mostly
+   only their opacity moves: an animated box-shadow would repaint on every frame. Their
+   insets start inside the back's 10px border: past -10px, they show around it. */
+
+/* A rare: a rainbow rim, the holo foil it is about to show, and a pale border. Still. */
 .reveal-card.is-rare .reveal-back {
-    border-color: var(--hi);
-    box-shadow: 0 0 40px rgba(var(--glow), 0.9), 0 0 100px rgba(var(--glow), 0.45);
+    border-color: color-mix(in oklab, var(--flat) 25%, #fff);
 }
 
+.reveal-card.is-rare .reveal-back::before {
+    content: "";
+    position: absolute;
+    inset: -20px;
+    z-index: -1;
+    border-radius: calc(var(--card-radius) + 10px);
+    background: conic-gradient(from 200deg, #ff8fb1, #ffe08a, #8fffc8, #8fd8ff, #c8a8ff, #ff8fb1);
+    filter: blur(12px);
+}
+
+/* A gold: a warm glow breathing slowly, and a gleam running across the back now and then.
+   Its shards (booster-intro.js) keep the glow, not the moving parts. */
 .reveal-card.is-gold .reveal-back {
     border-color: #f3d27a;
-    box-shadow: 0 0 40px rgba(255, 215, 122, 0.9), 0 0 100px rgba(255, 215, 122, 0.45);
+    box-shadow: 0 0 45px rgba(255, 215, 122, 0.95), 0 0 120px rgba(255, 200, 90, 0.5);
 }
 
-/* A secret rare: a prismatic glow, white at its heart. */
+.reveal-card.is-gold .reveal-back:not(.reveal-shard)::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    z-index: -1;
+    border-radius: inherit;
+    box-shadow: 0 0 70px 14px rgba(255, 215, 122, 0.7);
+    animation: glow-breathe 2.6s ease-in-out infinite alternate;
+}
+
+.reveal-card.is-gold .reveal-back:not(.reveal-shard)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+        105deg,
+        transparent 42%,
+        rgba(255, 246, 214, 0.38) 50%,
+        transparent 58%
+    );
+    background-size: 300% 100%;
+    background-position: 100% 0;
+    pointer-events: none;
+    animation: gold-gleam 3.4s ease-in-out infinite;
+}
+
+/* A secret rare: a prismatic glow, white at its heart, and a rainbow halo behind it whose
+   colours go round. In steps: six repaints a second of the blurred halo, not sixty. */
 .reveal-card.is-secret .reveal-back {
     border-color: #e6dcff;
-    box-shadow: 0 0 40px rgba(230, 220, 255, 0.9), 0 0 90px rgba(150, 120, 255, 0.55),
-        0 0 140px rgba(80, 200, 255, 0.3);
+    box-shadow: 0 0 22px rgba(240, 235, 255, 0.9), 0 0 150px rgba(150, 120, 255, 0.4);
+}
+
+.reveal-card.is-secret .reveal-back::before {
+    content: "";
+    position: absolute;
+    inset: -32px;
+    z-index: -1;
+    border-radius: calc(var(--card-radius) + 22px);
+    background: conic-gradient(#ff5fa2, #ffd25f, #5fffb0, #5fc8ff, #a87bff, #ff5fa2);
+    filter: blur(16px) hue-rotate(0deg);
+    animation: halo-hue 6s steps(36) infinite, glow-breathe 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes glow-breathe {
+    from {
+        opacity: 0.45;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Across in the first third, then still until the next pass. */
+@keyframes gold-gleam {
+    0% {
+        background-position: 100% 0;
+    }
+    35%,
+    100% {
+        background-position: 0 0;
+    }
+}
+
+@keyframes halo-hue {
+    to {
+        filter: blur(16px) hue-rotate(360deg);
+    }
 }
 
 /* Its supernova building up: the back fills with light while it spins (booster-intro.js).
@@ -109,7 +189,10 @@
 
 @media (prefers-reduced-motion: reduce) {
     .reveal-card.is-charging .reveal-back,
-    .reveal-card.is-charging .reveal-back::after {
+    .reveal-card.is-charging .reveal-back::after,
+    .reveal-card.is-gold .reveal-back::before,
+    .reveal-card.is-gold .reveal-back::after,
+    .reveal-card.is-secret .reveal-back::before {
         animation: none;
     }
 }
@@ -134,7 +217,8 @@
     filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 3px #ffd77a);
 }
 
-/* Behind a rare, around its reveal only: a soft glow of light, not a sunburst. */
+/* Behind a gold or a secret, around its reveal only: a soft glow of light, not a sunburst.
+   Warm for a gold, prismatic for a secret (data-rarity, booster-intro.js). */
 .reveal-rays {
     position: absolute;
     width: 90vmin;
@@ -153,10 +237,21 @@
     animation: rays-spin 24s linear infinite paused;
 }
 
+.reveal-rays[data-rarity="secret"] {
+    background: repeating-conic-gradient(
+        rgba(220, 205, 255, 0.24) 0 4deg,
+        transparent 4deg 20deg
+    );
+}
+
 .reveal-rays.is-on {
     opacity: 0.7;
     scale: 1;
     animation-play-state: running;
+}
+
+.reveal-rays.is-on[data-rarity="secret"] {
+    opacity: 0.9;
 }
 
 @keyframes rays-spin {

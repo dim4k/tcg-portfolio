@@ -58,10 +58,12 @@ export const CONFIG = {
     // `"secret"`; without it, it is common. Each rarity has its own finish (tcg-card.css), a
     // symbol before the collector number, and its reveal in the booster, where it comes out
     // after the commons: the halo for a rare, the back cracking open for a gold, a supernova
-    // for a secret (`rays`: in the glow of the halo). Labels are in the locales (rarity.rare...).
+    // for a secret. Face down on top of the stack, each glows through its back, more and more
+    // from rare to secret (effects.css); `rays`: light rays turn behind it too. Labels are in
+    // the locales (rarity.rare...).
     RARITIES: {
         rare: { symbol: "★", reveal: "halo" },
-        gold: { symbol: "★★", reveal: "cracks" },
+        gold: { symbol: "★★", reveal: "cracks", rays: true },
         secret: { symbol: "★★★", reveal: "nova", rays: true },
     },
     SOCIAL: {
@@ -101,7 +103,8 @@ export const CONFIG = {
     // Collections. Each one is a booster pack, a run of pages in the binder and, once its
     // booster is opened, a part of the deck: the deck holds every opened set, in this order.
     // A new collection only needs an entry here:
-    //   id       stable key, also stored in localStorage once the booster is opened
+    //   id       stable key, also stored in localStorage once the booster is opened, and the
+    //            URL hash that opens the deck on this set alone (antoine.kim/#after-hours)
     //   code     two letters, printed on the pack and before each collector number (BS 01/05)
     //   name     shown on the pack, the deck dividers and the binder
     //   tagline  what is inside, under the pack while picking one
@@ -109,8 +112,11 @@ export const CONFIG = {
     //   secret   left out of sight until every other card has been seen (collection.js)
     //   booster  colours of the pack: `color` for the wrapper, `highlight` for its accents
     //   cards    full card data (see the README), or `projects`, printed by setCards()
-    // Any card or project can take a `rarity` (see RARITIES). The texts are in English here;
-    // public/js/locales/fr.js translates them, by set id and card slug.
+    // Any card or project can take a `rarity` (see RARITIES). A card's corner stat
+    // (header.hpLabel and hpValue, or an hpType computed in tcg-card.js) is a figure: years,
+    // roles, apps, a level; a set without one for each card leaves the corner empty, as Off
+    // the Clock does (the collector number is in the footer already). The texts are in
+    // English here; public/js/locales/fr.js translates them, by set id and card slug.
     SETS: [
         {
             id: "base",
@@ -170,7 +176,7 @@ export const CONFIG = {
                         stage: "Core Competencies",
                         name: "Tech Stack",
                         hpLabel: "LVL",
-                        hpValue: "Exp",
+                        hpValue: "99",
                     },
                     image: "public/img/tech-stack.jpg",
                     body: {
@@ -328,11 +334,13 @@ export const CONFIG = {
             icon: "moon",
             booster: { color: "#1d1757", highlight: "#8ff0ff" },
             // Side projects, each printed as a card with its live demo and source links, and
-            // `image` in the picture frame (`icon` fills it when there is none).
+            // `image` in the picture frame (`icon` fills it when there is none). `year`, when
+            // it started (its repository's creation), takes the corner stat: SINCE 2025.
             // `slug` is the URL hash that opens the deck on that card, as for `cards`.
             projects: {
                 map2poster: {
                     slug: "map2poster",
+                    year: 2018,
                     label: "Map2Poster",
                     icon: "map-location-dot",
                     image: "public/img/projects/map2poster.jpg",
@@ -345,6 +353,7 @@ export const CONFIG = {
                 },
                 kimpay: {
                     slug: "kimpay",
+                    year: 2025,
                     label: "Kimpay",
                     icon: "wallet",
                     image: "public/img/projects/kimpay.jpg",
@@ -358,6 +367,7 @@ export const CONFIG = {
                 },
                 mixera: {
                     slug: "mixera",
+                    year: 2026,
                     label: "MixEra",
                     icon: "music",
                     image: "public/img/projects/mixera.jpg",
@@ -370,6 +380,7 @@ export const CONFIG = {
                 },
                 haNaolib: {
                     slug: "naolib",
+                    year: 2025,
                     label: "Naolib",
                     icon: "bus",
                     image: "public/img/projects/naolib.jpg",
@@ -381,6 +392,7 @@ export const CONFIG = {
                 },
                 ezloc: {
                     slug: "ezloc",
+                    year: 2025,
                     label: "EzLoc",
                     icon: "house",
                     image: "public/img/projects/ezloc.jpg",
@@ -393,6 +405,7 @@ export const CONFIG = {
                 },
                 cookim: {
                     slug: "cookim",
+                    year: 2026,
                     label: "Cookim",
                     icon: "utensils",
                     image: "public/img/projects/cookim.jpg",
@@ -405,6 +418,7 @@ export const CONFIG = {
                 },
                 tcgPortfolio: {
                     slug: "tcg-portfolio",
+                    year: 2025,
                     label: "TCG Portfolio",
                     icon: "layer-group",
                     image: "public/img/projects/tcg-portfolio.jpg",
@@ -431,7 +445,7 @@ export const CONFIG = {
                     slug: "cycling",
                     theme: "grass",
                     rarity: "gold",
-                    header: { stage: "Off the Clock", name: "Cycling", hpLabel: "NO.", hpValue: "01" },
+                    header: { stage: "Off the Clock", name: "Cycling" },
                     image: "public/img/off-the-clock/cycling.jpg",
                     body: {
                         row1: {
@@ -452,7 +466,7 @@ export const CONFIG = {
                     slug: "photography",
                     theme: "electric",
                     rarity: "rare",
-                    header: { stage: "Off the Clock", name: "Photography", hpLabel: "NO.", hpValue: "02" },
+                    header: { stage: "Off the Clock", name: "Photography" },
                     image: "public/img/off-the-clock/photography.jpg",
                     body: {
                         row1: {
@@ -472,7 +486,7 @@ export const CONFIG = {
                     id: 3,
                     slug: "cinema",
                     theme: "psychic",
-                    header: { stage: "Off the Clock", name: "Cinema", hpLabel: "NO.", hpValue: "03" },
+                    header: { stage: "Off the Clock", name: "Cinema" },
                     image: "public/img/off-the-clock/cinema.jpg",
                     body: {
                         row1: {
@@ -492,7 +506,7 @@ export const CONFIG = {
                     id: 4,
                     slug: "nantes",
                     theme: "ice",
-                    header: { stage: "Off the Clock", name: "Nantes", hpLabel: "NO.", hpValue: "04" },
+                    header: { stage: "Off the Clock", name: "Nantes" },
                     image: "public/img/elephant.jpg",
                     body: {
                         row1: {
@@ -511,7 +525,7 @@ export const CONFIG = {
                     id: 5,
                     slug: "follow",
                     theme: "fire",
-                    header: { stage: "Off the Clock", name: "Follow Along", hpLabel: "NO.", hpValue: "05" },
+                    header: { stage: "Off the Clock", name: "Follow Along" },
                     image: "public/img/off-the-clock/follow.jpg",
                     body: {
                         row1: {

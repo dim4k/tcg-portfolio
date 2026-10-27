@@ -53,11 +53,12 @@ export function setCards(set) {
             slug: project.slug,
             brand: project.brand,
             rarity: project.rarity,
+            // The year it started in the corner; its number is in the footer already.
             header: {
                 stage: localizeSet(set).name,
                 name: project.label,
-                hpLabel: t("card.number"),
-                hpValue: pad(index + 1, 2),
+                hpLabel: project.year ? t("card.since") : "",
+                hpValue: project.year ? String(project.year) : "",
             },
             ...(project.image ? { image: project.image } : { art: { icon: project.icon } }),
             body: {

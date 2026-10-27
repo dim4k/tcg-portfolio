@@ -4,6 +4,8 @@ import { t } from "../i18n.js";
 const HINT_KEY = "tcg-gesture-hint";
 // Gone by itself after this long (ms), to come back on the next visit.
 const HINT_LINGER = 9000;
+// Room (px) kept between the hint and the edges of the card's picture.
+const PICTURE_INSET = 10;
 
 function wasLearned() {
     try {
@@ -44,8 +46,27 @@ export class GestureHint {
         const parts = [t(touch ? "hint.throwTouch" : "hint.throwPointer")];
         if (this.deckManager.cards[0].hasBack) parts.push(t(touch ? "hint.flipTouch" : "hint.flipPointer"));
         this.el.textContent = parts.join(" · ");
+        this.place(this.deckManager.cards[0]);
         this.el.hidden = false;
         this.timer = setTimeout(() => this.dismiss(false), HINT_LINGER);
+    }
+
+    /**
+     * Over the bottom of the card's picture: what covers it hides no text, and keeps clear of
+     * the "new" badge at its top. Without a picture, the stylesheet's place, mid-card.
+     */
+    place(card) {
+        const picture = card.shadowRoot?.querySelector(".card-image-container");
+        const box = picture?.getBoundingClientRect();
+        if (!box?.height) {
+            this.el.removeAttribute("data-placed");
+            this.el.style.top = this.el.style.maxWidth = "";
+            return;
+        }
+        const deck = this.deckManager.deckContainer.getBoundingClientRect();
+        this.el.style.top = `${box.bottom - deck.top - PICTURE_INSET}px`;
+        this.el.style.maxWidth = `${box.width - 2 * PICTURE_INSET}px`;
+        this.el.dataset.placed = "";
     }
 
     dismiss(learned) {
