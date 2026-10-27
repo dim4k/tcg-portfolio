@@ -665,7 +665,7 @@ export class BinderView {
             // Held: the light stops following the pointer.
             this.deckManager.isDragging = true;
             card.classList.add("is-dragging");
-            card.style.setProperty("--glare-opacity", "0");
+            card.setLight({ glare: 0 });
         }
         card.style.transform = followPointer(drag, e);
     }

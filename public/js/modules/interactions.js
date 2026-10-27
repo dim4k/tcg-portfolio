@@ -2,9 +2,7 @@ import { CONFIG } from "../config.js";
 import { Utils } from "./utils.js";
 
 export function setCardVars(card, { mx, my, glare }) {
-    card.style.setProperty("--mx", `${mx}%`);
-    card.style.setProperty("--my", `${my}%`);
-    card.style.setProperty("--glare-opacity", `${glare}`);
+    card.setLight({ mx, my, glare });
 }
 
 /**

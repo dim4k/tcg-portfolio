@@ -3,6 +3,8 @@ import { Utils } from "./utils.js";
 // How long (ms) a point of the cut trail and the slash of a finished cut stay on screen.
 const TRAIL_LIFE = 220;
 const SLASH_LIFE = 380;
+// Steps of the trail's glow, from its fresh head to its fading tail.
+const TRAIL_SLICES = 4;
 const GRAVITY = 0.22;
 const DRAG = 0.985;
 
@@ -162,12 +164,31 @@ export class BoosterFx {
         }
 
         while (this.trail.length && now - this.trail[0].t > TRAIL_LIFE) this.trail.shift();
+        const trail = this.trail;
         ctx.strokeStyle = "#fff";
         ctx.shadowColor = "#8fe3ff";
+        // The glow blurs once per stroke: it is drawn a slice of the trail's age at a time,
+        // then the core over it, thinning and fading segment by segment, without a blur.
         ctx.shadowBlur = 14;
-        for (let i = 1; i < this.trail.length; i++) {
-            const a = this.trail[i - 1];
-            const b = this.trail[i];
+        let slice = -1;
+        for (let i = 1; i < trail.length; i++) {
+            const k = 1 - (now - trail[i].t) / TRAIL_LIFE;
+            const s = Math.min(TRAIL_SLICES - 1, Math.max(0, Math.floor(k * TRAIL_SLICES)));
+            if (s !== slice) {
+                if (slice >= 0) ctx.stroke();
+                slice = s;
+                ctx.globalAlpha = (s + 0.5) / TRAIL_SLICES;
+                ctx.lineWidth = 1 + (s / TRAIL_SLICES) * 6;
+                ctx.beginPath();
+                ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+            }
+            ctx.lineTo(trail[i].x, trail[i].y);
+        }
+        if (slice >= 0) ctx.stroke();
+        ctx.shadowBlur = 0;
+        for (let i = 1; i < trail.length; i++) {
+            const a = trail[i - 1];
+            const b = trail[i];
             const k = 1 - (now - b.t) / TRAIL_LIFE;
             ctx.globalAlpha = k;
             ctx.lineWidth = 1 + k * 6;

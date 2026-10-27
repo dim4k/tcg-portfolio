@@ -141,6 +141,21 @@ function collectionSize() {
     );
 }
 
+// Every element whose styles read --mx, --my or --glare-opacity (tcg-card.css).
+const LIT_LAYERS = [
+    ".holo-overlay",
+    ".glare",
+    ".rare-foil",
+    ".rare-glitter",
+    ".gold-etch",
+    ".secret-prism",
+    ".card-border",
+    ".card-inner",
+    ".back-inner",
+    ".card-name",
+    ".back-title",
+].join(", ");
+
 class TcgCard extends HTMLElement {
     constructor() {
         super();
@@ -155,6 +170,7 @@ class TcgCard extends HTMLElement {
             front: this.shadowRoot.querySelector(".face.front"),
             back: this.shadowRoot.querySelector(".face.back"),
         };
+        this.litLayers = [...this.shadowRoot.querySelectorAll(LIT_LAYERS)];
         this.syncFaces();
 
         // One delegated listener for both flip buttons, and nothing to leak on detach.
@@ -280,6 +296,20 @@ class TcgCard extends HTMLElement {
      * One pass of the light sweep over the foil. Restarting the animation needs the attribute
      * to be removed and re-added across a style flush.
      */
+    /**
+     * Where the light falls (mx, my: percent of the card) and how strong the glare is; any
+     * left out stays as it was. Written on the layers that read them (LIT_LAYERS), where they
+     * do not inherit (base.css): set on the card, every element in it would restyle on every
+     * frame of a tilt.
+     */
+    setLight({ mx, my, glare }) {
+        for (const layer of this.litLayers) {
+            if (mx !== undefined) layer.style.setProperty("--mx", `${mx}%`);
+            if (my !== undefined) layer.style.setProperty("--my", `${my}%`);
+            if (glare !== undefined) layer.style.setProperty("--glare-opacity", `${glare}`);
+        }
+    }
+
     playShine() {
         if (Utils.prefersReducedMotion()) return;
         this.removeAttribute("shining");

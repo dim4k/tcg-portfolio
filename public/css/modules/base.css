@@ -12,6 +12,23 @@
 /* ==========================================
    VARIABLES
    ========================================== */
+/* The light on a card (tcg-card.js setLight), written on each layer that reads it. Not
+   inherited, so a change restyles that layer alone, not everything inside it. Any value and
+   no initial one: unset, var() still falls back as in tcg-card.css. Registered here, since
+   @property is not read from a shadow root's styles. */
+@property --mx {
+    syntax: "*";
+    inherits: false;
+}
+@property --my {
+    syntax: "*";
+    inherits: false;
+}
+@property --glare-opacity {
+    syntax: "*";
+    inherits: false;
+}
+
 :root {
     --card-aspect: 0.718;
     /* Clamped so the card is never taller than a short window, which cannot scroll, and
