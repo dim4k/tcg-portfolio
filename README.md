@@ -1,204 +1,96 @@
-# 🎴 TCG Porfolio
+<p align="center">
+  <img src="public/img/favicon/favicon.svg" width="64" alt="">
+</p>
 
-A highly interactive, Pokémon card inspired portfolio featuring holographic 3D cards, dynamic particle backgrounds, and smooth physics-based animations.
+<h1 align="center">TCG Portfolio</h1>
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+<p align="center">
+  <a href="https://antoine.kim"><img src="https://img.shields.io/badge/demo-antoine.kim-f0532b" alt="Live demo"></a>
+  <img src="https://img.shields.io/badge/vanilla-JS-f7df1e?logo=javascript&logoColor=black" alt="Vanilla JS">
+  <img src="https://img.shields.io/badge/build_step-none-brightgreen" alt="No build step">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/dim4k/tcg-portfolio" alt="License"></a>
+</p>
 
-## 📋 Overview
+<p align="center">
+  A portfolio you <b>collect</b>: open booster packs, flip holographic cards<br>
+  and fill a binder, in plain HTML, CSS and JS.
+</p>
 
-This project reimagines the traditional web portfolio as a deck of collectible cards. Built with modern Vanilla JS (native ES Modules) and CSS3, it delivers a premium visual experience without heavy frameworks and **without a build step**.
+<p align="center">
+  <a href="https://antoine.kim"><b>🎴 Live demo → antoine.kim</b></a>
+</p>
 
-**Core Concept:**
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/boosters.jpg" alt="Booster lobby"><br><sub><b>Pick a booster</b></sub></td>
+    <td width="33%"><img src="docs/screenshots/slice.jpg" alt="Slicing a pack open"><br><sub><b>Slice it open</b></sub></td>
+    <td width="33%"><img src="docs/screenshots/reveal.jpg" alt="Card reveal"><br><sub><b>Reveal the cards</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/holo.jpg" alt="Rare holo card"><br><sub><b>Holo rares</b></sub></td>
+    <td><img src="docs/screenshots/secret.jpg" alt="Secret rare card"><br><sub><b>Unlock the secret rare</b></sub></td>
+    <td><img src="docs/screenshots/binder.jpg" alt="Binder"><br><sub><b>Fill the binder</b></sub></td>
+  </tr>
+</table>
 
--   **Card 1 (Fire)**: Professional Profile
--   **Card 2 (Psychic)**: Tech Stack & Skills
--   **Card 3 (Ice)**: Career Path
--   **Card 4 (Dark)**: Side Projects
--   **Card 5 (Grass)**: Personal Interests
--   **Card N...**: Add as many as you need!
+## Features
 
-## ✨ Key Features
+- **Holographic cards** with foil, glitter and glare, tilting with the mouse or the phone's gyroscope.
+- **Rarities**: rare ★, gold ★★ and secret ★★★ cards, each with its own finish and booster reveal.
+- **Boosters**: slice a pack open, flip the cards one by one, watch them fly into your collection.
+- **Binder**: a page-turning book with one tab per set, cards to pull out and handle full size.
+- **Secret set**: see every card to unlock a hidden booster.
+- **Deck navigation**: throw, scroll, arrow keys, a scrubber, and deep links (`/#projects`).
+- **English & French**, accessible, responsive, and the collection survives in `localStorage`.
 
-### 🎨 Visual Experience
-
--   **Holographic VMAX Effect**: Realistic foil textures, glitter, and glare that react to light.
--   **Rare, Gold and Secret Cards**: `rarity: "rare"`, `"gold"` or `"secret"` on a card in `config.js`. A rare (★) gets a rainbow foil with glitter and a light that breathes at rest, a gold (★★) an engraved gold finish with sparkles, a secret rare (★★★) a night sky: stars and drifting nebulae on an obsidian face, prismatic lines under the light, a chrome frame whose rainbow turns, a prismatic name and a halo; in front of the deck, each one colours the whole page. In a booster they come out last: a rare with a halo, a gold with its back cracking open, a secret rare in a supernova (it spins faster and faster as its back fills with light, then bursts).
--   **3D Tilt Physics**: Cards rotate based on mouse position (Desktop) or device orientation (Mobile Gyroscope).
--   **Swirl Background**: A dynamic, noise-based particle system that creates a living backdrop.
--   **Infinite Deck**: The stacking logic supports any number of cards automatically.
--   **Boosters & Collection**: The first visit opens on a lobby: the role and name above one sealed pack per set, each standing on a pool of light over its reflection, with a line saying what it holds, under a spotlight that takes the colour of the pack hovered (on a phone, a carousel to swipe through, the light following the pack in the middle). Pick one and slice it with a stroke in any direction: its cards come out face down. Tap to turn the top one over: it turns in the light a moment, then flies into the Collection button on its own; the rare, gold and secret cards come last, each with its own reveal, and the deck comes back with the new cards. The deck is your collection: every booster opened adds its cards, filed by set. Packs still sealed wait in a dock above the deck navigation; several open a pick among them. The collection is kept in `localStorage`, so it is still there in a new tab or the next day; a set added since the visitor's last visit shows a "New" ribbon.
--   **Secret Set**: a card wears a "New" badge until it counts as seen: a fifth of a second in front of the deck, a flip, or taken out of its binder pocket. Seeing every card unlocks the `secret` set: its booster shows up in the dock, with a "Let's Talk" secret rare.
--   **Card Backs**: Click a card (or its flip button) to turn it over and read the details on its back. On a first visit, a hint says how to throw and flip a card, until the visitor does.
--   **Collection Drawer**: A toolbar button opens one tile per set, with its pack and how many of its cards have been seen: an opened set narrows the deck to its cards, a sealed one opens its booster.
--   **Binder**: A book whose pages turn with a drag or a tap (two pages side by side on wide screens, one on phones), with a divider page and colour tab per set. Sealed sets show mystery pockets and a button to open their booster; cards never looked at wear a "New" tag. A ring-less card binder: its pages are stitched into the spine, and blur as they turn. Picking a card takes it out of its pocket, full size, and it handles like the front card of the deck: it leans towards the mouse or the phone's tilt, a tap turns it over, and a throw sends it back to the binder. It can also be put back, or sent to the front of the deck. The binder is a view of its own: its own background, and in the toolbar a Boosters button counting the boosters still sealed takes the place of Collection.
-
-### 🎮 Interactions
-
--   **Drag & Throw**: Grab the front card with the mouse or a finger and throw it in any direction to cycle the deck.
--   **Deck Navigation**: Collector numbers (`BS 03/05`) on each card, and a scrubber under the deck, cut into one coloured segment per set: drag it to leaf through the deck, at 10 cards or 200.
--   **Scroll & Keyboard**: Scroll wheel and arrow keys cycle the deck too.
--   **Deep Links**: `/#projects` opens the deck on the Projects card, `/#kimpay` on a card of After Hours (adding the set to the collection); the address bar follows the card in front.
--   **English & French**: the language follows the browser, a toolbar button switches it (the page reloads on the same card), and `?lang=fr` forces it in a link.
--   **Accessible**: Only the front card is focusable, and card changes are announced to screen readers.
--   **Responsive Design**: Adaptive layout that transforms from a 3D showcase to a touch-friendly mobile view.
-
-## ⚙️ Configuration
-
-Everything is data-driven. You don't need to touch the HTML.
-Open `public/js/config.js` to customize:
-
-### 1. Profile & Content
-
-Cards are filed by collection in `SETS`. Each set is a booster pack, a run of pages in the
-binder and, once opened, a part of the deck. Adding a collection only takes a new entry: the
-packs, deck dividers, binder pages and tabs are all built from it.
-
-```javascript
-export const CONFIG = {
-    // ...
-    SETS: [
-        {
-            id: "base",
-            code: "BS", // printed on the pack and before each collector number
-            name: "Base Set",
-            tagline: "Profile & contact", // under the pack while picking one
-            icon: "star", // key of icons.js, for the dividers and binder tabs
-            booster: { color: "#f0532b", highlight: "#ffd77a" }, // pack colours
-            cards: [
-                {
-                    id: 1,
-                    theme: "fire",
-                    header: {
-                        stage: "Professional Profile",
-                        name: "Your Name",
-                        hpValue: "34",
-                        hpLabel: "AGE",
-                        hpType: "dynamic-age",
-                    },
-                    // ...
-                },
-            ],
-        },
-    ],
-};
-```
-
-Each card can also have:
-
--   `slug`: the URL hash that opens the deck on it (`antoine.kim/#profile`).
--   `back`: a title and a list of `{ label, text }` items printed on the back. Cards without
-    one do not flip.
--   `art`: `{ icon }`, a large icon shown in the picture frame when there is no `image`.
-
-A card's second row renders `actions` (keys of `CONFIG.SOCIAL`, laid out side by side). A social
-entry with a `copy` value gets a button that copies it, for links like `mailto:` that do nothing
-without a configured client. `expansion` adds a button that opens that expansion in the binder.
-
-A set can list `projects` instead of `cards` (the After Hours set does): each side project,
-with its own `slug`, is printed as a card, with a live demo and a source link when it has one.
-Its `image` fills the picture frame (`icon` is shown when there is none). A project without
-`source` or `language` (a private repository) shows only its demo link. Image sources and
-credits are listed in `public/img/credits.txt`.
-A set's `code` is printed before the collector number (`AH 01/06`).
-
-A set with `secret: true` stays out of sight (packs, drawer, binder, deep links) until every
-card of the other sets has been seen.
-
-The collection is kept in `localStorage`: the sets opened (`CONFIG.BOOSTER_KEY`), the cards
-seen (`CONFIG.SEEN_KEY`) and the sets the visitor already knew about (`CONFIG.KNOWN_KEY`). The
-booster intro only plays while none is opened. "Reset collection", at the bottom of the
-collection drawer, seals every booster again and forgets the cards seen, after a confirmation.
-
-### Card pictures
-
-Each JPEG in `public/img` has an AVIF and a WebP copy next to it, 800px wide at most (twice
-the picture frame); the cards pick the lightest format the browser reads. After adding or
-changing a picture, make its two copies with any converter ([Squoosh](https://squoosh.app),
-sharp, ImageMagick...): same name, resized to 800px wide, AVIF at quality ~52 and WebP at ~76.
-A card whose picture is not a JPEG shows it as is.
-
-### Languages
-
-The texts in `config.js` are in English. `public/js/locales/fr.js` holds the French: the
-interface strings (`ui`), then the card texts, by set id and card slug (or project key),
-merged over the config. Anything left out shows in English, so a new card can be translated
-later. Interface strings in English are in `public/js/locales/en.js`.
-
-### 2. Visual Themes
-
-Theme colours live in CSS, so the page background and the card gradients cannot drift
-apart. Add a `--bg-*` and a `--color-*` entry in `public/css/modules/base.css`:
-
-```css
-:root {
-    --bg-fire: #4a0000; /* page background */
-    --color-fire: #ff9d9d; /* card accent */
-}
-```
-
-Then add the matching `:host([theme="fire"])` block in
-`public/css/components/tcg-card.css`, and set it as the `theme` of a card.
-
-### 3. Tuning
-
-Adjust physics and sensitivity in the root of the object.
-
-```javascript
-    GYRO_SENSITIVITY: 0.5,
-    MOUSE_ROTATION_FACTOR: 15,
-    THROW_DISTANCE: 110, // px dragged before a released card is thrown
-```
-
-### 4. Share Preview
-
-Link previews (LinkedIn, Slack, X) use `public/img/og-image.jpg`, a 1200×630 screenshot of
-`tools/og-image.html`. After changing the profile card, serve the folder and regenerate it
-(Chrome writes a JPEG from the extension):
+## Quick start
 
 ```bash
-chrome --headless=new --hide-scrollbars --window-size=1200,630 --virtual-time-budget=10000     --screenshot=public/img/og-image.jpg http://localhost:8000/tools/og-image.html
+git clone https://github.com/dim4k/tcg-portfolio.git
+cd tcg-portfolio
+python -m http.server 8000   # any static server works
 ```
 
-The `og:*` tags in `index.html` need absolute URLs: update them if the site moves.
+Open http://localhost:8000. ES modules need HTTP, so `file://` won't do.
 
-## 🚀 How to Run
+**Deploy:** upload `index.html` and `public/` to any static host (GitHub Pages, Netlify, nginx, S3…).
 
-The site is made of plain static files (HTML, JS, CSS) using native ES modules.
-Because ES modules are blocked over the `file://` protocol, you need to serve
-the folder over HTTP. Any static server works — for example:
+## Make it yours
 
-```bash
-# Python 3
-python -m http.server 8000
+Everything lives in [`public/js/config.js`](public/js/config.js). Cards are grouped in **sets**:
+each set becomes a booster, a binder section and a slice of the deck.
 
-# or Node's http-server, nginx, Apache, etc.
+```javascript
+SETS: [
+    {
+        id: "base",
+        code: "BS",                       // printed before collector numbers
+        name: "Base Set",
+        booster: { color: "#f0532b", highlight: "#ffd77a" },
+        cards: [
+            {
+                theme: "fire",
+                rarity: "rare",           // "rare" | "gold" | "secret"
+                slug: "profile",          // antoine.kim/#profile
+                header: { stage: "Professional Profile", name: "Your Name" },
+                back: { title: "…", items: [{ label: "…", text: "…" }] },
+            },
+        ],
+    },
+],
 ```
 
-Then open http://localhost:8000.
+| What               | Where                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| French texts       | [`public/js/locales/fr.js`](public/js/locales/fr.js), anything missing falls back to English         |
+| Themes             | `--bg-*` / `--color-*` in `public/css/modules/base.css` + a block in `public/css/components/tcg-card.css` |
+| Physics            | `GYRO_SENSITIVITY`, `MOUSE_ROTATION_FACTOR`, `THROW_DISTANCE` in `config.js`                          |
+| Pictures           | JPEG in `public/img`, plus AVIF (q≈52) and WebP (q≈76) copies, 800px wide                              |
+| Share preview      | Screenshot `tools/og-image.html` at 1200×630 to `public/img/og-image.jpg`                             |
 
-## ☁️ Deployment
+A set can also list `projects` instead of `cards`, or be marked `secret: true` to stay hidden until
+every other card has been seen.
 
-No build step. Just upload the project files (`index.html` + `public/`) to any
-static host (nginx, Apache, GitHub Pages, Netlify, S3, FTP…).
+## License
 
-## 📱 Browser Support
-
-| Browser | Desktop | Mobile |
-| ------- | ------- | ------ |
-| Chrome  | ✅      | ✅     |
-| Firefox | ✅      | ✅     |
-| Safari  | ✅      | ✅     |
-| Edge    | ✅      | ✅     |
-
-_Note: Gyroscope features require HTTPS or localhost context on modern mobile browsers._
-
-## 👤 Author
-
-**Antoine Kim**
-
--   Portfolio: [antoine.kim](https://antoine.kim)
-
-## 📝 License
-
-MIT License - Feel free to fork and adapt for your own portfolio!
+MIT, by [Antoine Kim](https://antoine.kim). Fork it and make your own deck!
